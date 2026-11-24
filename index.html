@@ -1,0 +1,3150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BistroFlow — VIP Dining Manager</title>
+
+  <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            display: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#FFFBEB',
+              100: '#FEF3C7',
+              500: '#D97706',
+              600: '#B45309',
+              700: '#92400E',
+              900: '#78350F',
+            },
+            surface: '#F8F9FA',
+            ink: '#1E293B',
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Chart.js via CDN for Manager Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* Subtle architectural floor plan grid pattern */
+    .floor-canvas {
+      background-color: #F8F9FA;
+      background-image: radial-gradient(#CBD5E1 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Smooth scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F1F5F9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94A3B8;
+    }
+
+    /* Subtle pulse for Bill Requested tables */
+    @keyframes softPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.35); }
+      50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
+    .pulse-bill {
+      animation: softPulse 2.2s infinite;
+    }
+
+    /* Drawer slide-in animation */
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0.6; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .animate-slide-in {
+      animation: slideInRight 0.22s ease-out;
+    }
+  </style>
+</head>
+<body class="bg-surface text-ink font-sans antialiased overflow-x-hidden min-h-screen selection:bg-brand-100 selection:text-brand-900">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 pointer-events-none max-w-sm sm:w-96 mx-auto sm:mx-0"></div>
+
+  <!-- Custom Confirmation Modal (Replaces native confirm/alert) -->
+  <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6">
+      <div class="flex items-start gap-3">
+        <div id="confirm-icon" class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+        </div>
+        <div class="flex-1">
+          <h3 id="confirm-title" class="font-display font-bold text-lg text-slate-900">Confirm Action</h3>
+          <p id="confirm-message" class="text-sm text-slate-600 mt-1 leading-relaxed"></p>
+        </div>
+      </div>
+      <div class="mt-6 flex items-center justify-end gap-2.5">
+        <button id="confirm-cancel-btn" type="button" class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-medium text-sm hover:bg-slate-50 transition">Cancel</button>
+        <button id="confirm-ok-btn" type="button" class="min-h-[44px] px-4 py-2 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 1. ROLE SELECTION / LOGIN SCREEN                                      -->
+  <!-- ===================================================================== -->
+  <section id="login-screen" class="min-h-screen flex flex-col justify-between bg-gradient-to-br from-slate-50 via-amber-50/40 to-slate-100 p-4 sm:p-6">
+    <!-- Top Language Toggle -->
+    <div class="max-w-5xl w-full mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl bg-brand-600 text-white flex items-center justify-center shadow-md shadow-brand-600/20">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"/>
+          </svg>
+        </div>
+        <div>
+          <span class="font-display font-extrabold text-lg tracking-tight text-slate-900">BistroFlow</span>
+          <span class="block text-[11px] font-semibold uppercase tracking-widest text-brand-600">VIP Dining Manager</span>
+        </div>
+      </div>
+      <button onclick="toggleLanguage()" class="lang-toggle-btn min-h-[44px] px-3.5 py-2 rounded-xl bg-white border border-slate-200 shadow-sm text-sm font-semibold text-slate-700 hover:border-brand-500 hover:text-brand-700 transition flex items-center gap-1.5">
+        <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.2 0 4-4 4-9s-1.8-9-4-9-4 4-4 9 1.8 9 4 9zm-8.5-9h17"/></svg>
+        <span class="lang-label">EN / TR</span>
+      </button>
+    </div>
+
+    <!-- Main Role Selection Card -->
+    <div class="max-w-4xl w-full mx-auto my-8">
+      <div class="text-center mb-8">
+        <span id="login-demo-pill" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold mb-3">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+          <span data-i18n="demoDataBanner">Pre-seeded Pilot Demo Active</span>
+        </span>
+        <h1 class="font-display font-extrabold text-3xl sm:text-4xl text-slate-900 tracking-tight" data-i18n="loginTitle">Service Area & Restaurant Management</h1>
+        <p class="text-slate-600 mt-2 text-sm sm:text-base max-w-xl mx-auto" data-i18n="loginSubtitle">Select your staff role to launch the mobile waiter workstation or the executive reporting dashboard.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+        <!-- Waiter 1 (Ali) -->
+        <button type="button" onclick="loginAs('waiter', 'Ali')" class="group text-left bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-500/60 transition-all flex flex-col justify-between min-h-[210px]">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 font-display font-bold text-lg flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition">A</div>
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700" data-i18n="roleWaiter">Waiter Interface</span>
+            </div>
+            <h2 class="font-display font-bold text-xl text-slate-900" data-i18n="waiter1Name">Waiter 1 — Ali</h2>
+            <p class="text-sm text-slate-500 mt-1.5" data-i18n="waiterDesc">Manage VIP floor plan, open tables, send orders, and process table checkout.</p>
+          </div>
+          <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-sm font-semibold text-emerald-700">
+            <span data-i18n="enterStation">Open Workstation</span>
+            <svg class="w-4 h-4 group-hover:translate-x-1 transition" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          </div>
+        </button>
+
+        <!-- Waiter 2 (Zeynep) -->
+        <button type="button" onclick="loginAs('waiter', 'Zeynep')" class="group text-left bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:border-amber-500/60 transition-all flex flex-col justify-between min-h-[210px]">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 font-display font-bold text-lg flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition">Z</div>
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700" data-i18n="roleWaiter">Waiter Interface</span>
+            </div>
+            <h2 class="font-display font-bold text-xl text-slate-900" data-i18n="waiter2Name">Waiter 2 — Zeynep</h2>
+            <p class="text-sm text-slate-500 mt-1.5" data-i18n="waiterDesc">Manage VIP floor plan, open tables, send orders, and process table checkout.</p>
+          </div>
+          <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-sm font-semibold text-amber-700">
+            <span data-i18n="enterStation">Open Workstation</span>
+            <svg class="w-4 h-4 group-hover:translate-x-1 transition" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          </div>
+        </button>
+
+        <!-- Manager (Admin) -->
+        <div class="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-lg flex flex-col justify-between min-h-[210px]">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-12 h-12 rounded-2xl bg-brand-600 text-white font-display font-bold text-lg flex items-center justify-center">M</div>
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/10 text-amber-300" data-i18n="roleManager">Manager Interface</span>
+            </div>
+            <h2 class="font-display font-bold text-xl text-white" data-i18n="managerName">Manager (Admin)</h2>
+            <p class="text-sm text-slate-300 mt-1.5" data-i18n="managerDesc">Sales analytics, best-sellers, table turnover KPIs, menu editor, and CSV exports.</p>
+          </div>
+
+          <form onsubmit="handleManagerLogin(event)" class="mt-4 pt-4 border-t border-slate-700/80">
+            <div class="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+              <label for="manager-pin-input" data-i18n="managerPinLabel">Access PIN</label>
+              <span class="text-amber-300 font-medium" data-i18n="demoPinHint">Demo PIN: 1234</span>
+            </div>
+            <div class="flex gap-2">
+              <input id="manager-pin-input" type="password" inputmode="numeric" maxlength="6" value="1234" placeholder="1234" class="w-full min-h-[44px] px-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm font-mono tracking-widest focus:outline-none focus:border-brand-500" />
+              <button type="submit" class="min-h-[44px] px-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold text-sm transition shrink-0" data-i18n="signIn">Sign In</button>
+            </div>
+            <p id="pin-error" class="hidden text-xs text-rose-400 mt-1.5" data-i18n="invalidPin">Incorrect PIN. Try 1234.</p>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Note -->
+    <div class="max-w-5xl w-full mx-auto text-center text-xs text-slate-500">
+      <span data-i18n="loginFooter">VIP Dining Area Pilot Platform • 12 Tables • 24 Gastronomy Items • Offline-Ready Local Persistence</span>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- 2. MAIN APPLICATION SHELL (WAITER & MANAGER WORKSPACES)               -->
+  <!-- ===================================================================== -->
+  <div id="app-shell" class="hidden min-h-screen flex flex-col">
+
+    <!-- Sticky Top Header Bar -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+        <!-- Brand & Current Role -->
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-display font-extrabold text-base sm:text-lg text-slate-900 truncate">BistroFlow</span>
+              <span id="header-demo-badge" class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800">Demo</span>
+            </div>
+            <p id="header-user-info" class="text-xs text-slate-500 font-medium truncate"></p>
+          </div>
+        </div>
+
+        <!-- Right Controls: Quick Role Switch, Language Toggle, Logout -->
+        <div class="flex items-center gap-1.5 sm:gap-2">
+          <!-- Role Quick Switch -->
+          <div class="relative">
+            <select id="quick-role-select" onchange="handleQuickRoleSwitch(this.value)" aria-label="Switch Role" class="min-h-[40px] pl-2.5 pr-7 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer">
+              <option value="waiter:Ali">Ali (Waiter)</option>
+              <option value="waiter:Zeynep">Zeynep (Waiter)</option>
+              <option value="manager:Admin">Manager (Admin)</option>
+            </select>
+          </div>
+
+          <!-- Language Toggle -->
+          <button type="button" onclick="toggleLanguage()" class="lang-toggle-btn min-h-[40px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-brand-500 text-xs sm:text-sm font-bold text-slate-700 transition">
+            <span class="lang-label">EN</span>
+          </button>
+
+          <!-- Return to Login -->
+          <button type="button" onclick="logoutToLogin()" title="Switch Role Screen" class="min-h-[40px] min-w-[40px] px-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs Bar -->
+      <div class="border-t border-slate-100 bg-slate-50/70">
+        <div id="nav-tabs" class="max-w-7xl mx-auto px-3 sm:px-6 flex items-center gap-1 overflow-x-auto py-1.5 no-scrollbar">
+          <!-- Dynamically populated based on Waiter vs Manager role -->
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Dynamic Workspace Content -->
+    <main id="main-content" class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5 sm:py-6">
+      <!-- Rendered dynamically by JS -->
+    </main>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 3. WAITER TABLE ORDER DRAWER / MODAL                                  -->
+  <!-- ===================================================================== -->
+  <div id="order-drawer" class="fixed inset-0 z-40 hidden bg-slate-900/50 backdrop-blur-sm">
+    <div class="absolute inset-y-0 right-0 w-full max-w-5xl bg-white shadow-2xl flex flex-col animate-slide-in">
+      <!-- Drawer Header -->
+      <div id="order-drawer-header" class="px-4 sm:px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between gap-3 shrink-0">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Drawer Body -->
+      <div id="order-drawer-body" class="flex-1 overflow-hidden flex flex-col">
+        <!-- Populated dynamically: Open Table view OR Order Taking + Cart view OR Checkout view -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 4. MANAGER TABLE INSPECTOR MODAL                                      -->
+  <!-- ===================================================================== -->
+  <div id="manager-inspect-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden">
+      <div id="manager-inspect-content"></div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 5. MANAGER MENU ITEM ADD / EDIT MODAL                                 -->
+  <!-- ===================================================================== -->
+  <div id="menu-edit-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 sm:p-6 my-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="menu-modal-title" class="font-display font-bold text-lg text-slate-900">Edit Menu Item</h3>
+        <button type="button" onclick="closeMenuEditModal()" class="w-9 h-9 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-500">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="menu-edit-form" onsubmit="saveMenuItemForm(event)" class="space-y-3.5">
+        <input type="hidden" id="edit-item-id" />
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="itemNameEn">Item Name (EN)</label>
+            <input id="edit-name-en" type="text" required class="w-full min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="itemNameTr">Item Name (TR)</label>
+            <input id="edit-name-tr" type="text" required class="w-full min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-3 sm:col-span-1">
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="category">Category</label>
+            <select id="edit-category" class="w-full min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:border-brand-600">
+              <option value="Starters">Starters</option>
+              <option value="Soups & Salads">Soups & Salads</option>
+              <option value="Main Courses">Main Courses</option>
+              <option value="Desserts">Desserts</option>
+              <option value="Beverages">Beverages</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="priceTry">Price (₺)</label>
+            <input id="edit-price" type="number" min="1" step="1" required class="w-full min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="prepMin">Prep (min)</label>
+            <input id="edit-prep" type="number" min="1" max="120" required class="w-full min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="descriptionEn">Description (EN)</label>
+          <textarea id="edit-desc-en" rows="2" required class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-brand-600"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="descriptionTr">Description (TR)</label>
+          <textarea id="edit-desc-tr" rows="2" required class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-brand-600"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="tagsLabel">Dietary / Allergen Tags (comma-separated)</label>
+          <input id="edit-tags" type="text" placeholder="Chef's Pick, GF, Vegan, Nuts" class="w-full min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-brand-600" />
+        </div>
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeMenuEditModal()" class="min-h-[44px] px-4 rounded-xl border border-slate-300 text-slate-700 font-medium text-sm hover:bg-slate-50" data-i18n="cancel">Cancel</button>
+          <button type="submit" class="min-h-[44px] px-5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm transition" data-i18n="saveItem">Save Menu Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- APPLICATION LOGIC (VANILLA JS + LOCALSTORAGE + CHART.JS)              -->
+  <!-- ===================================================================== -->
+  <script>
+    /* =====================================================================
+     * 1. BILINGUAL DICTIONARY (EN / TR)
+     * ===================================================================== */
+    const I18N = {
+      en: {
+        demoDataBanner: "Pre-seeded Pilot Demo Active",
+        livePilotBanner: "Live Pilot Test Mode",
+        loginTitle: "Service Area & Restaurant Management",
+        loginSubtitle: "Select your staff role to launch the mobile waiter workstation or the executive reporting dashboard.",
+        roleWaiter: "Waiter Interface",
+        roleManager: "Manager Interface",
+        waiter1Name: "Waiter 1 — Ali",
+        waiter2Name: "Waiter 2 — Zeynep",
+        managerName: "Manager (Admin)",
+        waiterDesc: "Manage VIP floor plan, open tables, send orders, and process table checkout.",
+        managerDesc: "Sales analytics, best-sellers, table turnover KPIs, menu editor, and CSV exports.",
+        enterStation: "Open Workstation",
+        managerPinLabel: "Access PIN",
+        demoPinHint: "Demo PIN: 1234",
+        signIn: "Sign In",
+        invalidPin: "Incorrect PIN. Try 1234.",
+        loginFooter: "VIP Dining Area Pilot Platform • 12 Tables • 24 Gastronomy Items • Offline-Ready Local Persistence",
+
+        // Navigation Tabs
+        tabFloorPlan: "Floor Plan",
+        tabActiveOrders: "Active Orders",
+        tabFullMenu: "Full Menu",
+        tabAnalytics: "Analytics & Reports",
+        tabLiveFloor: "Live Floor Monitor",
+        tabMenuMgmt: "Menu Management",
+        tabPilotTools: "Pilot Tools & Export",
+
+        // Floor Plan & Zones
+        kitchenPass: "KITCHEN & BAR PASS — SERVICE COUNTER",
+        zoneWindowVip: "Window VIP Zone",
+        zoneWindowSub: "Panoramic View • 4-Seat Rectangular Tables",
+        zoneMainHall: "Main Dining Hall",
+        zoneMainSub: "Bistro Seating (2-Seat) & Grand VIP Tables (6-Seat)",
+        zoneGarden: "Garden Terrace",
+        zoneGardenSub: "Open-Air Patio • 4-Seat Round Tables",
+        allTables: "All Tables",
+        statusAvailable: "Available",
+        statusOccupied: "Occupied",
+        statusBill: "Bill Requested",
+        seats: "seats",
+        guests: "guests",
+        tapToOpen: "Tap to open",
+        tapToInspect: "Tap to inspect",
+        floorTipWaiter: "Tap any table on the service floor to seat guests, add menu items, or close the check.",
+        floorTipManager: "Live monitoring view of all 12 service tables. Tap any table to inspect order details.",
+
+        // Waiter Active Orders
+        activeOrdersTitle: "Currently Active Tables",
+        activeOrdersEmpty: "All tables are currently available. Open a table from the Floor Plan to begin taking orders.",
+        itemsCount: "items",
+        editOrder: "Manage Order",
+        requestBill: "Request Bill",
+        checkout: "Checkout",
+        kitchenNote: "Kitchen Note",
+        noNote: "No special notes",
+
+        // Order Drawer
+        openTableTitle: "Open Table for Seating",
+        openTableDesc: "Select the number of guests to activate this table and start the dining duration timer.",
+        selectGuests: "Number of Guests",
+        startTableBtn: "Open Table & Start Service",
+        menuPickerTab: "Menu Picker",
+        currentOrderTab: "Order Cart",
+        searchMenuPlaceholder: "Search dishes, ingredients, tags...",
+        allCategories: "All",
+        soldOut: "Sold Out",
+        add: "Add",
+        emptyCart: "No items added yet. Tap + on dishes to build the table's order.",
+        specialNoteLabel: "Special Kitchen / Allergy Note",
+        specialNotePlaceholder: "e.g., No onion, medium-rare, gluten-free...",
+        subtotal: "Subtotal",
+        serviceCharge: "10% Service Charge",
+        total: "Total",
+        sendUpdateOrder: "Send / Update Order",
+        closeTableCheckout: "Close Table & Checkout",
+        cancelEmptyTable: "Release Table",
+        paymentTitle: "Close Table & Complete Checkout",
+        paymentSubtitle: "Select payment method to log this seating for manager reports and free the table.",
+        creditCard: "Credit / Debit Card",
+        cash: "Cash",
+        completePayment: "Confirm Payment & Close Table",
+        backToOrder: "Back to Order",
+        diningDuration: "Dining Duration",
+        assignedWaiter: "Waiter",
+
+        // Categories
+        "Starters": "Starters",
+        "Soups & Salads": "Soups & Salads",
+        "Main Courses": "Main Courses",
+        "Desserts": "Desserts",
+        "Beverages": "Beverages",
+
+        // Manager Analytics
+        kpiTotalSales: "Total Sales Revenue",
+        kpiCompletedOrders: "Completed Orders",
+        kpiAvgCheck: "Average Check",
+        kpiTurnover: "Table Turnover Rate",
+        kpiActiveTables: "Active Occupied Tables",
+        avgDurationLabel: "Avg. Duration",
+        guestsServedLabel: "guests served",
+        openRevenueLabel: "live open checks",
+        chartBestSellers: "Best-Selling Items (Top 8 by Units)",
+        chartRevenueCat: "Revenue by Category (₺)",
+        tableBestSellers: "Best-Selling Items Breakdown",
+        tablePerformance: "Table Performance & Turnover (T1–T12)",
+        waiterPerformance: "Waiter Performance Summary",
+        completedOrdersLog: "Completed Orders Log",
+        colRank: "#",
+        colItem: "Menu Item",
+        colCategory: "Category",
+        colUnits: "Units Sold",
+        colRevenue: "Revenue (₺)",
+        colTable: "Table",
+        colZone: "Zone",
+        colSeatings: "Times Seated",
+        colGuests: "Total Guests",
+        colAvgMin: "Avg. Duration",
+        colWaiter: "Waiter",
+        colOrders: "Orders",
+        colAvgOrder: "Avg. Check",
+        colTime: "Completed At",
+        colDuration: "Duration",
+        colPayment: "Payment",
+        colTotal: "Total",
+        noAnalyticsData: "No completed orders logged yet. Complete a table checkout or load Demo Data to populate analytics.",
+        minUnit: "min",
+
+        // Manager Menu Management
+        menuMgmtTitle: "Digital Menu Control",
+        menuMgmtSub: "Toggle availability in real time, update pricing, or add new seasonal dishes.",
+        addNewItemBtn: "Add New Item",
+        edit: "Edit",
+        active: "Active",
+        itemNameEn: "Item Name (EN)",
+        itemNameTr: "Item Name (TR)",
+        category: "Category",
+        priceTry: "Price (₺)",
+        prepMin: "Prep (min)",
+        descriptionEn: "Description (EN)",
+        descriptionTr: "Description (TR)",
+        tagsLabel: "Dietary / Allergen Tags (comma-separated)",
+        cancel: "Cancel",
+        saveItem: "Save Menu Item",
+        editMenuItemTitle: "Edit Menu Item",
+        addMenuItemTitle: "Add New Menu Item",
+
+        // Pilot Tools
+        pilotToolsTitle: "Pilot Testing & Data Export Tools",
+        pilotToolsSub: "Prepare a clean slate for your live campus VIP pilot test or export session data to Excel/CSV for academic analysis.",
+        exportOrdersTitle: "Export Sales & Orders CSV",
+        exportOrdersDesc: "Downloads all completed orders with timestamps, waiter, table, guest count, duration, payment method, and itemized details.",
+        exportOrdersBtn: "Download Orders CSV",
+        exportTablesTitle: "Export Table Turnover CSV",
+        exportTablesDesc: "Downloads performance metrics per table (T1–T12) including times seated, average duration, and revenue.",
+        exportTablesBtn: "Download Table Report CSV",
+        loadDemoTitle: "Load Pre-Seeded Demo Data",
+        loadDemoDesc: "Populates 8 realistic completed orders across both waiters plus 2 live active tables (T2 & T7) for demonstrations.",
+        loadDemoBtn: "Load Demo Data",
+        resetPilotTitle: "Reset All Data for Pilot Test",
+        resetPilotDesc: "Clears all completed orders and resets all 12 tables to Available while keeping the 24-item gastronomy menu intact.",
+        resetPilotBtn: "Reset for Live Pilot",
+        pilotSummaryStats: "Current Database Snapshot",
+        confirmResetTitle: "Reset All Data for Pilot Test?",
+        confirmResetMsg: "This will permanently delete all completed orders and clear active tables so you can start a fresh live pilot test. Your 24 menu items will remain saved.",
+        confirmDemoTitle: "Load Demo Data?",
+        confirmDemoMsg: "This will replace current orders and table states with 8 sample completed orders and 2 active tables (T2 Occupied, T7 Bill Requested).",
+
+        // Toasts
+        toastTableOpened: "Table opened and dining timer started.",
+        toastOrderSaved: "Order sent to kitchen & saved.",
+        toastBillRequested: "Bill requested — table status updated.",
+        toastCheckoutDone: "Checkout completed! Table is now available.",
+        toastTableReleased: "Table released to Available.",
+        toastDemoLoaded: "Demo data loaded (8 completed orders, 2 active tables).",
+        toastResetDone: "All orders & tables reset for live pilot test.",
+        toastCsvExported: "CSV report downloaded successfully.",
+        toastMenuSaved: "Menu updated successfully.",
+        toastAddItemsFirst: "Please add at least one item before sending or requesting the bill.",
+        toastNoDataExport: "No completed orders available to export yet.",
+        close: "Close",
+        openInWaiterView: "Manage Order (Override)",
+        prepTimeLabel: "Prep"
+      },
+      tr: {
+        demoDataBanner: "Ön Yüklü Pilot Demo Verisi Aktif",
+        livePilotBanner: "Canlı Pilot Test Modu",
+        loginTitle: "Servis Alanı ve Restoran Yönetimi",
+        loginSubtitle: "Mobil garson sipariş ekranını veya yönetici raporlama panelini açmak için rolünüzü seçin.",
+        roleWaiter: "Garson Arayüzü",
+        roleManager: "Yönetici Arayüzü",
+        waiter1Name: "Garson 1 — Ali",
+        waiter2Name: "Garson 2 — Zeynep",
+        managerName: "Yönetici (Admin)",
+        waiterDesc: "VIP salon planını yönetin, masa açın, sipariş girin ve hesap kapatma işlemlerini yapın.",
+        managerDesc: "Satış analizleri, en çok satanlar, masa devir hızı KPI'ları, menü yönetimi ve CSV dışa aktarım.",
+        enterStation: "Ekrana Giriş Yap",
+        managerPinLabel: "Giriş PIN Kodu",
+        demoPinHint: "Demo PIN: 1234",
+        signIn: "Giriş Yap",
+        invalidPin: "Hatalı PIN. 1234 deneyin.",
+        loginFooter: "VIP Yemek Alanı Pilot Platformu • 12 Masa • 24 Gastronomi Ürünü • Çevrimdışı Yerel Kayıt",
+
+        // Navigation Tabs
+        tabFloorPlan: "Salon Planı",
+        tabActiveOrders: "Aktif Siparişler",
+        tabFullMenu: "Tam Menü",
+        tabAnalytics: "Analiz & Raporlar",
+        tabLiveFloor: "Canlı Salon İzleme",
+        tabMenuMgmt: "Menü Yönetimi",
+        tabPilotTools: "Pilot Araçları & Dışa Aktar",
+
+        // Floor Plan & Zones
+        kitchenPass: "MUTFAK & BAR SERVİS TEZGAHI",
+        zoneWindowVip: "Pencere Önü VIP Bölgesi",
+        zoneWindowSub: "Panoramik Manzara • 4 Kişilik Dikdörtgen Masalar",
+        zoneMainHall: "Ana Yemek Salonu",
+        zoneMainSub: "2 Kişilik Bistro Masalar ve 6 Kişilik Büyük VIP Masalar",
+        zoneGarden: "Bahçe Terası",
+        zoneGardenSub: "Açık Hava Veranda • 4 Kişilik Yuvarlak Masalar",
+        allTables: "Tüm Masalar",
+        statusAvailable: "Boş",
+        statusOccupied: "Dolu",
+        statusBill: "Hesap Bekliyor",
+        seats: "kişilik",
+        guests: "misafir",
+        tapToOpen: "Açmak için dokun",
+        tapToInspect: "İncelemek için dokun",
+        floorTipWaiter: "Misafir oturtmak, sipariş eklemek veya hesap kapatmak için salon planından bir masaya dokunun.",
+        floorTipManager: "12 servis masasının canlı durum takibi. Sipariş detayını görmek için herhangi bir masaya dokunun.",
+
+        // Waiter Active Orders
+        activeOrdersTitle: "Şu An Aktif Masalar",
+        activeOrdersEmpty: "Tüm masalar şu an boş. Sipariş almak için Salon Planı sekmesinden bir masa açın.",
+        itemsCount: "ürün",
+        editOrder: "Siparişi Yönet",
+        requestBill: "Hesap İste",
+        checkout: "Hesap Kapat",
+        kitchenNote: "Mutfak Notu",
+        noNote: "Özel not yok",
+
+        // Order Drawer
+        openTableTitle: "Masa Açılışı",
+        openTableDesc: "Masayı aktif etmek ve oturma süresi sayacını başlatmak için misafir sayısını seçin.",
+        selectGuests: "Misafir Sayısı",
+        startTableBtn: "Masayı Aç ve Servisi Başlat",
+        menuPickerTab: "Menü Seçimi",
+        currentOrderTab: "Masa Sepeti",
+        searchMenuPlaceholder: "Yemek, malzeme veya etiket ara...",
+        allCategories: "Tümü",
+        soldOut: "Tükendi",
+        add: "Ekle",
+        emptyCart: "Henüz ürün eklenmedi. Sipariş oluşturmak için yemeklerin yanındaki + butonuna dokunun.",
+        specialNoteLabel: "Özel Mutfak / Alerjen Notu",
+        specialNotePlaceholder: "Örn: Soğansız, orta pişmiş, glutensiz...",
+        subtotal: "Ara Toplam",
+        serviceCharge: "%10 Servis Ücreti",
+        total: "Genel Toplam",
+        sendUpdateOrder: "Siparişi Gönder / Güncelle",
+        closeTableCheckout: "Masayı Kapat & Ödeme Al",
+        cancelEmptyTable: "Masayı Boşalt",
+        paymentTitle: "Hesap Kapatma ve Ödeme",
+        paymentSubtitle: "Bu oturumu yönetici raporlarına kaydetmek ve masayı boşaltmak için ödeme yöntemini seçin.",
+        creditCard: "Kredi / Banka Kartı",
+        cash: "Nakit",
+        completePayment: "Ödemeyi Onayla ve Masayı Kapat",
+        backToOrder: "Siparişe Dön",
+        diningDuration: "Oturma Süresi",
+        assignedWaiter: "Garson",
+
+        // Categories
+        "Starters": "Başlangıçlar",
+        "Soups & Salads": "Çorba & Salatalar",
+        "Main Courses": "Ana Yemekler",
+        "Desserts": "Tatlılar",
+        "Beverages": "İçecekler",
+
+        // Manager Analytics
+        kpiTotalSales: "Toplam Satış Cirosu",
+        kpiCompletedOrders: "Tamamlanan Siparişler",
+        kpiAvgCheck: "Ortalama Hesap",
+        kpiTurnover: "Masa Devir Hızı",
+        kpiActiveTables: "Aktif Dolu Masalar",
+        avgDurationLabel: "Ort. Süre",
+        guestsServedLabel: "misafir ağırlandı",
+        openRevenueLabel: "açık hesap tutarı",
+        chartBestSellers: "En Çok Satan Ürünler (İlk 8 Adet)",
+        chartRevenueCat: "Kategoriye Göre Ciro (₺)",
+        tableBestSellers: "En Çok Satan Ürünler Detayı",
+        tablePerformance: "Masa Performansı ve Devir Hızı (T1–T12)",
+        waiterPerformance: "Garson Performans Özeti",
+        completedOrdersLog: "Tamamlanan Sipariş Geçmişi",
+        colRank: "#",
+        colItem: "Ürün Adı",
+        colCategory: "Kategori",
+        colUnits: "Satış Adedi",
+        colRevenue: "Ciro (₺)",
+        colTable: "Masa",
+        colZone: "Bölge",
+        colSeatings: "Oturum Sayısı",
+        colGuests: "Toplam Misafir",
+        colAvgMin: "Ort. Süre",
+        colWaiter: "Garson",
+        colOrders: "Sipariş",
+        colAvgOrder: "Ort. Hesap",
+        colTime: "Kapanış Saati",
+        colDuration: "Süre",
+        colPayment: "Ödeme",
+        colTotal: "Toplam",
+        noAnalyticsData: "Henüz tamamlanmış sipariş kaydı yok. Analizleri görmek için masa kapatın veya Demo Verisi yükleyin.",
+        minUnit: "dk",
+
+        // Manager Menu Management
+        menuMgmtTitle: "Dijital Menü Kontrolü",
+        menuMgmtSub: "Ürün stok durumunu anlık değiştirin, fiyat güncelleyin veya yeni yemek ekleyin.",
+        addNewItemBtn: "Yeni Ürün Ekle",
+        edit: "Düzenle",
+        active: "Aktif",
+        itemNameEn: "Ürün Adı (EN)",
+        itemNameTr: "Ürün Adı (TR)",
+        category: "Kategori",
+        priceTry: "Fiyat (₺)",
+        prepMin: "Hazırlık (dk)",
+        descriptionEn: "Açıklama (EN)",
+        descriptionTr: "Açıklama (TR)",
+        tagsLabel: "Diyet / Alerjen Etiketleri (virgülle ayırın)",
+        cancel: "İptal",
+        saveItem: "Ürünü Kaydet",
+        editMenuItemTitle: "Menü Ürününü Düzenle",
+        addMenuItemTitle: "Yeni Menü Ürünü Ekle",
+
+        // Pilot Tools
+        pilotToolsTitle: "Pilot Test ve Veri Dışa Aktarma Araçları",
+        pilotToolsSub: "Canlı kampüs VIP pilot testi için verileri temizleyin veya akademik analiz için Excel/CSV raporu indirin.",
+        exportOrdersTitle: "Satış & Siparişleri CSV İndir",
+        exportOrdersDesc: "Tamamlanan tüm siparişleri tarih, garson, masa, misafir sayısı, süre, ödeme tipi ve ürün detaylarıyla indirir.",
+        exportOrdersBtn: "Sipariş CSV İndir",
+        exportTablesTitle: "Masa Devir Raporu CSV İndir",
+        exportTablesDesc: "Her masa (T1–T12) için oturum sayısı, ortalama kalış süresi ve toplam ciro raporunu indirir.",
+        exportTablesBtn: "Masa Raporu CSV İndir",
+        loadDemoTitle: "Ön Yüklü Demo Verisini Yükle",
+        loadDemoDesc: "Sunum ve inceleme için 8 tamamlanmış sipariş ve 2 aktif masa (T2 ve T7) içeren örnek veriyi yükler.",
+        loadDemoBtn: "Demo Verisi Yükle",
+        resetPilotTitle: "Pilot Test İçin Tüm Verileri Sıfırla",
+        resetPilotDesc: "24 ürünlük menüyü koruyarak tüm sipariş geçmişini siler ve 12 masayı Boş durumuna getirir.",
+        resetPilotBtn: "Canlı Pilot İçin Sıfırla",
+        pilotSummaryStats: "Güncel Veritabanı Özeti",
+        confirmResetTitle: "Pilot Test İçin Sıfırlansın mı?",
+        confirmResetMsg: "Bu işlem tüm tamamlanmış siparişleri silecek ve tüm masaları Boş durumuna getirecektir. 24 menü ürünü korunacaktır.",
+        confirmDemoTitle: "Demo Verisi Yüklensin mi?",
+        confirmDemoMsg: "Mevcut veriler 8 örnek tamamlanmış sipariş ve 2 aktif masa (T2 Dolu, T7 Hesap Bekliyor) ile değiştirilecektir.",
+
+        // Toasts
+        toastTableOpened: "Masa açıldı ve oturma sayacı başlatıldı.",
+        toastOrderSaved: "Sipariş mutfağa iletildi ve kaydedildi.",
+        toastBillRequested: "Hesap istendi — masa durumu güncellendi.",
+        toastCheckoutDone: "Ödeme tamamlandı! Masa tekrar boş duruma geçti.",
+        toastTableReleased: "Masa boş duruma alındı.",
+        toastDemoLoaded: "Demo verisi yüklendi (8 tamamlanan sipariş, 2 aktif masa).",
+        toastResetDone: "Canlı pilot test için tüm veriler sıfırlandı.",
+        toastCsvExported: "CSV raporu başarıyla indirildi.",
+        toastMenuSaved: "Menü başarıyla güncellendi.",
+        toastAddItemsFirst: "Siparişi göndermeden veya hesap istemeden önce en az bir ürün ekleyin.",
+        toastNoDataExport: "Dışa aktarılacak tamamlanmış sipariş bulunmuyor.",
+        close: "Kapat",
+        openInWaiterView: "Siparişi Yönet (Yetkili)",
+        prepTimeLabel: "Hazırlık"
+      }
+    };
+
+    function t(key) {
+      return (I18N[appState.lang] && I18N[appState.lang][key]) || I18N.en[key] || key;
+    }
+
+    /* =====================================================================
+     * 2. ARCHITECTURAL FLOOR PLAN CONFIGURATION (12 TABLES, 3 ZONES)
+     * ===================================================================== */
+    const TABLES_CONFIG = [
+      // Window VIP Zone: T1-T4 (4-seat rectangular)
+      { id: 'T1', zone: 'window', seats: 4, shape: 'rect' },
+      { id: 'T2', zone: 'window', seats: 4, shape: 'rect' },
+      { id: 'T3', zone: 'window', seats: 4, shape: 'rect' },
+      { id: 'T4', zone: 'window', seats: 4, shape: 'rect' },
+      // Main Dining Hall: T5-T8 (2-seat round)
+      { id: 'T5', zone: 'main', seats: 2, shape: 'round' },
+      { id: 'T6', zone: 'main', seats: 2, shape: 'round' },
+      { id: 'T7', zone: 'main', seats: 2, shape: 'round' },
+      { id: 'T8', zone: 'main', seats: 2, shape: 'round' },
+      // Main Dining Hall: T9-T10 (6-seat large VIP rectangular)
+      { id: 'T9', zone: 'main', seats: 6, shape: 'vip-rect' },
+      { id: 'T10', zone: 'main', seats: 6, shape: 'vip-rect' },
+      // Garden Terrace: T11-T12 (4-seat round patio)
+      { id: 'T11', zone: 'garden', seats: 4, shape: 'patio-round' },
+      { id: 'T12', zone: 'garden', seats: 4, shape: 'patio-round' }
+    ];
+
+    const CATEGORIES = ['Starters', 'Soups & Salads', 'Main Courses', 'Desserts', 'Beverages'];
+
+    /* =====================================================================
+     * 3. COMPREHENSIVE GASTRONOMY MENU (24 DETAILED ITEMS)
+     * ===================================================================== */
+    const DEFAULT_MENU = [
+      // Starters (5)
+      {
+        id: 'm1', category: 'Starters', price: 220, prepTime: 12, active: true,
+        name: { en: 'Truffle Mushroom Arancini', tr: 'Trüflü Mantarlı Arancini' },
+        desc: {
+          en: 'Crisp Carnaroli risotto spheres filled with porcini mushrooms, aged Parmigiano, and black truffle aioli.',
+          tr: 'Porçini mantarı, olgunlaştırılmış Parmigiano ve siyah trüflü aioli sos ile çıtır Carnaroli risotto topları.'
+        },
+        tags: ["Chef's Pick", 'Vegetarian']
+      },
+      {
+        id: 'm2', category: 'Starters', price: 180, prepTime: 8, active: true,
+        name: { en: 'Roasted Red Pepper Muhammara & Sourdough', tr: 'Köz Kırmızı Biberli Muhammara & Ekşi Maya' },
+        desc: {
+          en: 'Charred kapia pepper spread with toasted walnuts, pomegranate molasses, olive oil, and warm artisan sourdough.',
+          tr: 'Közlenmiş kapya biber, kavrulmuş ceviz, nar ekşisi ve sızma zeytinyağı; ılık ekşi mayalı ekmek ile.'
+        },
+        tags: ['Vegan', 'Nuts']
+      },
+      {
+        id: 'm3', category: 'Starters', price: 290, prepTime: 14, active: true,
+        name: { en: 'Crispy Calamari with Lemon Aioli', tr: 'Çıtır Kalamar ve Limonlu Aioli' },
+        desc: {
+          en: 'Lightly dusted Aegean squid rings flash-fried to golden perfection, served with zesty lemon-garlic aioli.',
+          tr: 'Altın renginde kızartılmış taze Ege kalamar halkaları, ferah limonlu sarımsaklı aioli sos eşliğinde.'
+        },
+        tags: ['Seafood']
+      },
+      {
+        id: 'm4', category: 'Starters', price: 270, prepTime: 10, active: true,
+        name: { en: 'Burrata & Heirloom Tomato Carpaccio', tr: 'Burrata & Ata Tohumu Domates Carpaccio' },
+        desc: {
+          en: 'Creamy Pugliese burrata over thinly sliced heirloom tomatoes, basil pesto oil, and 12-year balsamic glaze.',
+          tr: 'İnce dilimlenmiş ata tohumu domatesler üzerinde kremamsı burrata, fesleğen yağı ve yıllanmış balzamik sos.'
+        },
+        tags: ['GF', 'Vegetarian', 'Dairy']
+      },
+      {
+        id: 'm5', category: 'Starters', price: 310, prepTime: 12, active: true,
+        name: { en: 'Beef Tartare Crostini', tr: 'Dana Tartar Crostini' },
+        desc: {
+          en: 'Hand-cut prime tenderloin tartare seasoned with shallots, capers, Dijon mustard, and cured egg yolk on crisp crostini.',
+          tr: 'Arpacık soğan, kapari, Dijon hardalı ve kürlenmiş yumurta sarısı ile bıçak kıyması bonfile tartar.'
+        },
+        tags: ["Chef's Pick"]
+      },
+
+      // Soups & Salads (4)
+      {
+        id: 'm6', category: 'Soups & Salads', price: 150, prepTime: 8, active: true,
+        name: { en: 'Velvety Roasted Pumpkin & Ginger Soup', tr: 'Zencefilli Köz Bal Kabağı Çorbası' },
+        desc: {
+          en: 'Silky slow-roasted pumpkin purée infused with fresh ginger, toasted pepitas, and a swirl of coconut cream.',
+          tr: 'Taze zencefille ağır ateşte közlenmiş kadifemsi bal kabağı çorbası, kavrulmuş kabak çekirdeği ile.'
+        },
+        tags: ['Vegan', 'GF']
+      },
+      {
+        id: 'm7', category: 'Soups & Salads', price: 240, prepTime: 10, active: true,
+        name: { en: 'Mediterranean Quinoa & Avocado Salad', tr: 'Akdeniz Kinoa ve Avokado Salatası' },
+        desc: {
+          en: 'Tri-color quinoa, ripe Hass avocado, cherry tomatoes, cucumber, kalamata olives, and lemon-oregano vinaigrette.',
+          tr: 'Üç renkli kinoa, olgun avokado, çeri domates, salatalık, kalamata zeytin ve limonlu kekikli sos.'
+        },
+        tags: ['Vegan', 'GF']
+      },
+      {
+        id: 'm8', category: 'Soups & Salads', price: 260, prepTime: 14, active: true,
+        name: { en: 'Classic Caesar Salad with Grilled Chicken', tr: 'Izgara Tavuklu Klasik Sezar Salata' },
+        desc: {
+          en: 'Crisp baby romaine tossed in house-made Caesar dressing, herb-grilled chicken breast, shaved parmesan, and garlic croutons.',
+          tr: 'Çıtır yedikule marulu, ev yapımı Sezar sos, ızgara tavuk göğsü, parmesan yaprakları ve sarımsaklı kruton.'
+        },
+        tags: ['Dairy']
+      },
+      {
+        id: 'm9', category: 'Soups & Salads', price: 250, prepTime: 10, active: true,
+        name: { en: 'Caramelized Pear & Goat Cheese Rocket Salad', tr: 'Karamelize Armut ve Keçi Peynirli Roka Salatası' },
+        desc: {
+          en: 'Wild baby arugula topped with honey-seared pear wedges, warm crusted goat cheese, candied pecans, and fig dressing.',
+          tr: 'Yabani roka yaprakları üzerinde ballı karamelize armut, ılık keçi peyniri, karamelize ceviz ve incir sos.'
+        },
+        tags: ['Vegetarian', 'GF', 'Nuts']
+      },
+
+      // Main Courses (6)
+      {
+        id: 'm10', category: 'Main Courses', price: 540, prepTime: 22, active: true,
+        name: { en: 'Slow-Braised Lamb Shank with Saffron Risotto', tr: 'Safranlı Risotto Eşliğinde Ağır Pişmiş Kuzu İncik' },
+        desc: {
+          en: '8-hour rosemary and thyme braised lamb shank served over creamy golden saffron risotto with natural jus.',
+          tr: 'Biberiye ve kekikle 8 saat ağır ateşte pişirilmiş kuzu incik, kremamsı safranlı risotto ve kendi sosu ile.'
+        },
+        tags: ["Chef's Pick", 'GF']
+      },
+      {
+        id: 'm11', category: 'Main Courses', price: 490, prepTime: 18, active: true,
+        name: { en: 'Pan-Seared Mediterranean Sea Bass', tr: 'Tavada Mühürlenmiş Akdeniz Levreği' },
+        desc: {
+          en: 'Crispy-skinned sea bass fillet over fennel-potato purée, sautéed baby spinach, and caper-lemon beurre blanc.',
+          tr: 'Çıtır derili levrek fileto, rezene aromalı patates püresi, sote bebek ıspanak ve kaparili limon sos.'
+        },
+        tags: ['Seafood', 'GF']
+      },
+      {
+        id: 'm12', category: 'Main Courses', price: 620, prepTime: 20, active: true,
+        name: { en: 'Herb-Crusted Beef Tenderloin', tr: 'Taze Baharat Kaplı Dana Bonfile' },
+        desc: {
+          en: '220g prime dry-aged beef tenderloin crusted with fresh herbs, served with grilled asparagus, truffle mash, and demi-glace.',
+          tr: '220g dinlendirilmiş taze otlu dana bonfile, ızgara kuşkonmaz, trüflü püre ve demi-glace sos eşliğinde.'
+        },
+        tags: ["Chef's Pick", 'GF']
+      },
+      {
+        id: 'm13', category: 'Main Courses', price: 360, prepTime: 16, active: true,
+        name: { en: 'Wild Mushroom & Truffle Tagliatelle', tr: 'Yabani Mantarlı ve Trüflü Tagliatelle' },
+        desc: {
+          en: 'Fresh egg tagliatelle folded into a velvety sautéed porcini & oyster mushroom cream sauce with shaved black truffle.',
+          tr: 'Taze el yapımı tagliatelle, porçini ve istiridye mantarlı kadifemsi sos ve siyah trüf aroması ile.'
+        },
+        tags: ['Vegetarian', 'Dairy']
+      },
+      {
+        id: 'm14', category: 'Main Courses', price: 390, prepTime: 18, active: true,
+        name: { en: 'Grilled Free-Range Chicken Supreme', tr: 'Izgara Gezen Tavuk Supreme' },
+        desc: {
+          en: 'Herb-marinated pan-roasted chicken breast with crispy skin, roasted baby carrots, creamy polenta, and thyme jus.',
+          tr: 'Baharatlarla marine edilmiş çıtır derili tavuk göğsü, fırın bebek havuç, kremamsı polenta ve kekik sos.'
+        },
+        tags: ['GF']
+      },
+      {
+        id: 'm15', category: 'Main Courses', price: 340, prepTime: 15, active: true,
+        name: { en: 'Chargrilled Halloumi & Roasted Vegetable Stack', tr: 'Izgara Hellim ve Köz Sebze Kulesi' },
+        desc: {
+          en: 'Layered Cypriot halloumi, chargrilled zucchini, eggplant, and roasted bell peppers finished with basil pesto oil.',
+          tr: 'Izgara Kıbrıs hellimi, közlenmiş kabak, patlıcan ve kapya biber katmanları, taze fesleğen sosu ile.'
+        },
+        tags: ['Vegetarian', 'GF', 'Dairy']
+      },
+
+      // Desserts (4)
+      {
+        id: 'm16', category: 'Desserts', price: 210, prepTime: 6, active: true,
+        name: { en: 'Burnt Basque Cheesecake with Berry Coulis', tr: 'Orman Meyveli San Sebastian Cheesecake' },
+        desc: {
+          en: 'Caramelized crust with a luxuriously creamy molten center, served alongside tangy wild berry coulis.',
+          tr: 'Karamelize dış kabuk ve akışkan kremamsı iç doku, taze orman meyvesi sosu eşliğinde.'
+        },
+        tags: ["Chef's Pick", 'Dairy']
+      },
+      {
+        id: 'm17', category: 'Desserts', price: 230, prepTime: 12, active: true,
+        name: { en: 'Warm Dark Chocolate Fondant & Vanilla Gelato', tr: 'Sıcak Bitter Çikolatalı Sufle & Vanilyalı Gelato' },
+        desc: {
+          en: '70% Belgian dark chocolate molten cake baked to order, paired with Madagascar vanilla bean gelato.',
+          tr: '%70 Belçika bitter çikolatalı akışkan sıcak sufle, Madagaskar vanilyalı dondurma ile.'
+        },
+        tags: ['Dairy']
+      },
+      {
+        id: 'm18', category: 'Desserts', price: 220, prepTime: 8, active: true,
+        name: { en: 'Pistachio Crème Brûlée', tr: 'Antep Fıstıklı Crème Brûlée' },
+        desc: {
+          en: 'Silky Antep pistachio custard crowned with a delicate torched caramelized sugar crust.',
+          tr: 'Kıtır karamelize şeker tabakası altında yoğun Antep fıstıklı kadifemsi krem.'
+        },
+        tags: ['GF', 'Nuts', 'Dairy']
+      },
+      {
+        id: 'm19', category: 'Desserts', price: 200, prepTime: 6, active: true,
+        name: { en: 'Classic Espresso Tiramisu', tr: 'Klasik Espresso Tiramisu' },
+        desc: {
+          en: 'Savoiardi ladyfingers soaked in freshly pulled espresso, layered with whipped mascarpone and Dutch cocoa.',
+          tr: 'Taze demlenmiş espresso ile ıslatılmış kedi dili, mascarpone kreması ve kakao.'
+        },
+        tags: ['Dairy']
+      },
+
+      // Beverages (5)
+      {
+        id: 'm20', category: 'Beverages', price: 110, prepTime: 4, active: true,
+        name: { en: 'Freshly Squeezed Pomegranate Juice', tr: 'Taze Sıkılmış Nar Suyu' },
+        desc: {
+          en: '100% pure Antalya seasonal pomegranates pressed to order, served chilled over ice.',
+          tr: '%100 taze Antalya mevsim narlarından sipariş anında sıkılmış soğuk nar suyu.'
+        },
+        tags: ['Vegan', 'GF']
+      },
+      {
+        id: 'm21', category: 'Beverages', price: 95, prepTime: 4, active: true,
+        name: { en: 'Homemade Mint & Ginger Lemonade', tr: 'Ev Yapımı Naneli ve Zencefilli Limonata' },
+        desc: {
+          en: 'Bright house-crafted lemonade infused with fresh garden mint leaves and a subtle hint of crushed ginger.',
+          tr: 'Taze bahçe nanesi ve hafif zencefil dokunuşuyla ferahlatıcı ev yapımı limonata.'
+        },
+        tags: ['Vegan', 'GF']
+      },
+      {
+        id: 'm22', category: 'Beverages', price: 90, prepTime: 4, active: true,
+        name: { en: 'Specialty Double Espresso / Americano', tr: 'Nitelikli Double Espresso / Americano' },
+        desc: {
+          en: 'Single-origin medium-roast Arabica beans pulled fresh; served as double espresso or hot/iced Americano.',
+          tr: 'Tek kökenli orta kavrum Arabica çekirdeklerinden double espresso veya sıcak/soğuk Americano.'
+        },
+        tags: ['Vegan', 'GF']
+      },
+      {
+        id: 'm23', category: 'Beverages', price: 100, prepTime: 4, active: true,
+        name: { en: 'Artisanal Hibiscus Iced Tea', tr: 'Ev Yapımı Hibiskus Soğuk Çay' },
+        desc: {
+          en: 'Cold-brewed ruby hibiscus petals steeped with orange zest, cinnamon stick, and raw blossom honey.',
+          tr: 'Portakal kabuğu, tarçın çubuğu ve doğal çiçek balıyla soğuk demlenmiş hibiskus çayı.'
+        },
+        tags: ['GF']
+      },
+      {
+        id: 'm24', category: 'Beverages', price: 60, prepTime: 2, active: true,
+        name: { en: 'Sparkling Mineral Water', tr: 'Doğal Maden Suyu (Cam Şişe)' },
+        desc: {
+          en: 'Chilled natural sparkling mineral water served in glass bottle with fresh lemon wedge.',
+          tr: 'Taze limon dilimi eşliğinde cam şişede soğuk doğal maden suyu.'
+        },
+        tags: ['Vegan', 'GF']
+      }
+    ];
+
+    /* =====================================================================
+     * 4. STATE MANAGEMENT & LOCALSTORAGE PERSISTENCE
+     * ===================================================================== */
+    const STORAGE_KEY = 'bistroflow_vip_state_v1';
+
+    function buildEmptyTablesState() {
+      const map = {};
+      TABLES_CONFIG.forEach(cfg => {
+        map[cfg.id] = {
+          id: cfg.id,
+          status: 'available', // 'available' | 'occupied' | 'bill_requested'
+          guests: 0,
+          waiter: null,
+          openedAt: null,
+          items: [], // [{ menuId, qty }]
+          note: '',
+          serviceChargeEnabled: false
+        };
+      });
+      return map;
+    }
+
+    function createDemoState(currentLang = 'en') {
+      const now = Date.now();
+      const minsAgo = m => now - m * 60 * 1000;
+      const menuClone = JSON.parse(JSON.stringify(DEFAULT_MENU));
+      const tables = buildEmptyTablesState();
+
+      // Helper to build order line items with price snapshot
+      const makeOrderItems = (pairs) => pairs.map(([menuId, qty]) => {
+        const m = menuClone.find(x => x.id === menuId);
+        return {
+          menuId: m.id,
+          nameEn: m.name.en,
+          nameTr: m.name.tr,
+          category: m.category,
+          price: m.price,
+          qty
+        };
+      });
+
+      const buildCompletedOrder = (idx, tableId, waiter, guests, endedMinsAgo, durationMin, paymentMethod, pairs, serviceChargeEnabled, note = '') => {
+        const items = makeOrderItems(pairs);
+        const subtotal = items.reduce((sum, it) => sum + it.price * it.qty, 0);
+        const serviceCharge = serviceChargeEnabled ? Math.round(subtotal * 0.10) : 0;
+        const endTime = minsAgo(endedMinsAgo);
+        const startTime = endTime - durationMin * 60 * 1000;
+        return {
+          id: 'ORD-' + String(1001 + idx),
+          tableId,
+          waiter,
+          guests,
+          startTime,
+          endTime,
+          durationMinutes: durationMin,
+          paymentMethod, // 'Credit Card' | 'Cash'
+          items,
+          subtotal,
+          serviceCharge,
+          total: subtotal + serviceCharge,
+          note
+        };
+      };
+
+      // 8 Realistic Pre-Seeded Completed Orders (durations 32–68 min)
+      const completedOrders = [
+        buildCompletedOrder(1, 'T1', 'Ali', 4, 185, 58, 'Credit Card', [['m1', 2], ['m4', 1], ['m10', 2], ['m12', 2], ['m16', 2], ['m20', 2], ['m24', 2]], true, 'Tenderloin medium-rare'),
+        buildCompletedOrder(2, 'T5', 'Zeynep', 2, 160, 38, 'Cash', [['m6', 2], ['m11', 1], ['m13', 1], ['m21', 2]], false, ''),
+        buildCompletedOrder(3, 'T9', 'Ali', 6, 130, 68, 'Credit Card', [['m2', 2], ['m3', 2], ['m5', 2], ['m10', 2], ['m12', 2], ['m11', 2], ['m17', 3], ['m18', 2], ['m22', 4], ['m24', 4]], true, 'VIP Faculty Lunch'),
+        buildCompletedOrder(4, 'T3', 'Zeynep', 3, 105, 45, 'Credit Card', [['m8', 1], ['m9', 1], ['m14', 2], ['m15', 1], ['m16', 2], ['m23', 3]], false, 'No croutons on Caesar'),
+        buildCompletedOrder(5, 'T6', 'Ali', 2, 82, 32, 'Cash', [['m7', 1], ['m13', 1], ['m19', 1], ['m22', 2]], false, 'Vegan dressing on side'),
+        buildCompletedOrder(6, 'T11', 'Zeynep', 4, 65, 52, 'Credit Card', [['m1', 2], ['m3', 1], ['m10', 1], ['m11', 2], ['m14', 1], ['m18', 2], ['m20', 2], ['m21', 2]], true, 'Patio shade requested'),
+        buildCompletedOrder(7, 'T10', 'Ali', 5, 42, 61, 'Credit Card', [['m4', 2], ['m5', 1], ['m12', 3], ['m10', 2], ['m16', 3], ['m17', 2], ['m22', 3], ['m24', 3]], true, 'Allergy: no peanuts'),
+        buildCompletedOrder(8, 'T4', 'Zeynep', 3, 18, 41, 'Cash', [['m2', 1], ['m6', 1], ['m13', 2], ['m15', 1], ['m19', 2], ['m23', 2], ['m21', 1]], false, '')
+      ];
+
+      // 2 Currently Active Tables: T2 (Occupied) and T7 (Bill Requested)
+      tables['T2'] = {
+        id: 'T2',
+        status: 'occupied',
+        guests: 3,
+        waiter: 'Ali',
+        openedAt: minsAgo(26),
+        items: [
+          { menuId: 'm1', qty: 1 },
+          { menuId: 'm10', qty: 1 },
+          { menuId: 'm11', qty: 1 },
+          { menuId: 'm13', qty: 1 },
+          { menuId: 'm20', qty: 2 },
+          { menuId: 'm24', qty: 1 }
+        ],
+        note: 'Sea bass sauce on the side, please.',
+        serviceChargeEnabled: true
+      };
+
+      tables['T7'] = {
+        id: 'T7',
+        status: 'bill_requested',
+        guests: 2,
+        waiter: 'Zeynep',
+        openedAt: minsAgo(48),
+        items: [
+          { menuId: 'm4', qty: 1 },
+          { menuId: 'm12', qty: 1 },
+          { menuId: 'm14', qty: 1 },
+          { menuId: 'm16', qty: 1 },
+          { menuId: 'm22', qty: 2 }
+        ],
+        note: 'Medium well tenderloin',
+        serviceChargeEnabled: false
+      };
+
+      return {
+        lang: currentLang,
+        isDemoSeeded: true,
+        menu: menuClone,
+        tables,
+        completedOrders
+      };
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.tables && parsed.menu && Array.isArray(parsed.completedOrders)) {
+            return parsed;
+          }
+        }
+      } catch (err) {
+        console.warn('localStorage load failed, falling back to demo state:', err);
+      }
+      const initial = createDemoState('en');
+      saveState(initial);
+      return initial;
+    }
+
+    function saveState(stateToSave = appState) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+      } catch (err) {
+        console.warn('localStorage save failed:', err);
+      }
+    }
+
+    // Global Runtime State
+    let appState = loadState();
+    let session = {
+      loggedIn: false,
+      role: null,      // 'waiter' | 'manager'
+      userName: null,  // 'Ali' | 'Zeynep' | 'Admin'
+      activeTab: null
+    };
+
+    // UI transient state
+    let floorStatusFilter = 'all'; // 'all' | 'available' | 'occupied' | 'bill_requested'
+    let activeDrawerTableId = null;
+    let drawerViewMode = 'order'; // 'order' | 'checkout'
+    let drawerMobilePanel = 'menu'; // 'menu' | 'cart' (for mobile tabs inside order drawer)
+    let drawerMenuCategory = 'All';
+    let drawerMenuSearch = '';
+    let waiterFullMenuCategory = 'All';
+    let waiterFullMenuSearch = '';
+    let managerMenuCategory = 'All';
+    let managerMenuSearch = '';
+    let selectedOpenGuests = 2;
+    let selectedPaymentMethod = 'Credit Card';
+    let bestSellersChartInstance = null;
+    let categoryChartInstance = null;
+
+    /* =====================================================================
+     * 5. HELPER UTILITIES
+     * ===================================================================== */
+    function formatTRY(amount) {
+      return '₺' + Number(amount || 0).toLocaleString('tr-TR');
+    }
+
+    function getMenuItem(menuId) {
+      return appState.menu.find(m => m.id === menuId);
+    }
+
+    function getItemName(item) {
+      if (!item) return '';
+      if (typeof item.name === 'object') return item.name[appState.lang] || item.name.en;
+      return appState.lang === 'tr' ? (item.nameTr || item.nameEn || item.name) : (item.nameEn || item.name);
+    }
+
+    function getItemDesc(item) {
+      if (!item) return '';
+      if (typeof item.desc === 'object') return item.desc[appState.lang] || item.desc.en;
+      return item.desc || '';
+    }
+
+    function getZoneLabel(zone) {
+      if (zone === 'window') return t('zoneWindowVip');
+      if (zone === 'main') return t('zoneMainHall');
+      return t('zoneGarden');
+    }
+
+    function getElapsedMinutes(openedAt) {
+      if (!openedAt) return 0;
+      return Math.max(1, Math.floor((Date.now() - openedAt) / 60000));
+    }
+
+    function calcTableTotals(table) {
+      let subtotal = 0;
+      let totalQty = 0;
+      (table.items || []).forEach(line => {
+        const m = getMenuItem(line.menuId);
+        if (m) {
+          subtotal += m.price * line.qty;
+          totalQty += line.qty;
+        }
+      });
+      const serviceCharge = table.serviceChargeEnabled ? Math.round(subtotal * 0.10) : 0;
+      return { subtotal, serviceCharge, total: subtotal + serviceCharge, totalQty };
+    }
+
+    function formatClockTime(ts) {
+      const d = new Date(ts);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const colors = {
+        success: 'bg-slate-900 text-white border-emerald-500/40',
+        warning: 'bg-amber-900 text-amber-50 border-amber-400/50',
+        error: 'bg-rose-900 text-white border-rose-400/50'
+      };
+      const dotColors = {
+        success: 'bg-emerald-400',
+        warning: 'bg-amber-400',
+        error: 'bg-rose-400'
+      };
+      const el = document.createElement('div');
+      el.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium transition-all ${colors[type] || colors.success}`;
+      el.innerHTML = `<span class="w-2.5 h-2.5 rounded-full shrink-0 ${dotColors[type] || dotColors.success}"></span><span class="flex-1">${escapeHtml(message)}</span>`;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(8px)';
+        setTimeout(() => el.remove(), 220);
+      }, 3000);
+    }
+
+    // Custom Confirmation Dialog (No native confirm/alert)
+    let confirmCallback = null;
+    function showConfirm(title, message, onConfirm, isDanger = false) {
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-message').textContent = message;
+      const okBtn = document.getElementById('confirm-ok-btn');
+      const cancelBtn = document.getElementById('confirm-cancel-btn');
+      okBtn.textContent = appState.lang === 'tr' ? 'Onayla' : 'Confirm';
+      cancelBtn.textContent = t('cancel');
+      okBtn.className = isDanger
+        ? 'min-h-[44px] px-4 py-2 rounded-xl bg-rose-600 text-white font-semibold text-sm hover:bg-rose-700 transition'
+        : 'min-h-[44px] px-4 py-2 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition';
+
+      confirmCallback = onConfirm;
+      const modal = document.getElementById('confirm-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeConfirmModal() {
+      const modal = document.getElementById('confirm-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      confirmCallback = null;
+    }
+
+    document.getElementById('confirm-cancel-btn').addEventListener('click', closeConfirmModal);
+    document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+      const fn = confirmCallback;
+      closeConfirmModal();
+      if (typeof fn === 'function') fn();
+    });
+
+    /* =====================================================================
+     * 6. LANGUAGE TOGGLE & LOGIN / ROLE SWITCHING
+     * ===================================================================== */
+    function applyStaticI18n() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.textContent = t(key);
+      });
+      document.querySelectorAll('.lang-label').forEach(el => {
+        el.textContent = appState.lang === 'en' ? 'EN → TR' : 'TR → EN';
+      });
+      const pill = document.getElementById('login-demo-pill');
+      if (pill) {
+        pill.innerHTML = appState.isDemoSeeded
+          ? `<span class="w-2 h-2 rounded-full bg-amber-500"></span><span>${escapeHtml(t('demoDataBanner'))}</span>`
+          : `<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span>${escapeHtml(t('livePilotBanner'))}</span>`;
+      }
+    }
+
+    function toggleLanguage() {
+      appState.lang = appState.lang === 'en' ? 'tr' : 'en';
+      saveState();
+      applyStaticI18n();
+      if (session.loggedIn) {
+        renderAppShell();
+        if (activeDrawerTableId) renderOrderDrawer();
+      }
+    }
+
+    function loginAs(role, userName) {
+      session.loggedIn = true;
+      session.role = role;
+      session.userName = userName;
+      session.activeTab = role === 'waiter' ? 'floor' : 'analytics';
+      floorStatusFilter = 'all';
+
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app-shell').classList.remove('hidden');
+      renderAppShell();
+    }
+
+    function handleManagerLogin(e) {
+      e.preventDefault();
+      const pinInput = document.getElementById('manager-pin-input');
+      const errEl = document.getElementById('pin-error');
+      const val = (pinInput.value || '').trim();
+      if (val === '1234' || val === '') {
+        errEl.classList.add('hidden');
+        loginAs('manager', 'Admin');
+      } else {
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    function handleQuickRoleSwitch(value) {
+      const [role, userName] = value.split(':');
+      closeOrderDrawer();
+      closeManagerInspectModal();
+      loginAs(role, userName);
+    }
+
+    function logoutToLogin() {
+      closeOrderDrawer();
+      closeManagerInspectModal();
+      session.loggedIn = false;
+      document.getElementById('app-shell').classList.add('hidden');
+      document.getElementById('login-screen').classList.remove('hidden');
+      applyStaticI18n();
+    }
+
+    /* =====================================================================
+     * 7. MAIN SHELL & NAVIGATION RENDERING
+     * ===================================================================== */
+    function renderAppShell() {
+      applyStaticI18n();
+
+      // Header User Info
+      const roleLabel = session.role === 'waiter' ? t('roleWaiter') : t('roleManager');
+      document.getElementById('header-user-info').textContent = `${session.userName} • ${roleLabel}`;
+
+      // Sync quick-role select
+      const sel = document.getElementById('quick-role-select');
+      sel.value = `${session.role}:${session.userName}`;
+      sel.options[0].textContent = appState.lang === 'tr' ? 'Ali (Garson)' : 'Ali (Waiter)';
+      sel.options[1].textContent = appState.lang === 'tr' ? 'Zeynep (Garson)' : 'Zeynep (Waiter)';
+      sel.options[2].textContent = appState.lang === 'tr' ? 'Yönetici (Admin)' : 'Manager (Admin)';
+
+      // Demo Badge
+      const demoBadge = document.getElementById('header-demo-badge');
+      if (appState.isDemoSeeded) {
+        demoBadge.classList.remove('hidden');
+        demoBadge.classList.add('sm:inline-flex');
+      } else {
+        demoBadge.classList.add('hidden');
+        demoBadge.classList.remove('sm:inline-flex');
+      }
+
+      // Tabs
+      const activeCount = Object.values(appState.tables).filter(tb => tb.status !== 'available').length;
+      const tabs = session.role === 'waiter'
+        ? [
+            { id: 'floor', label: t('tabFloorPlan'), badge: null },
+            { id: 'active', label: t('tabActiveOrders'), badge: activeCount > 0 ? activeCount : null },
+            { id: 'menu', label: t('tabFullMenu'), badge: appState.menu.length }
+          ]
+        : [
+            { id: 'analytics', label: t('tabAnalytics'), badge: null },
+            { id: 'livefloor', label: t('tabLiveFloor'), badge: activeCount > 0 ? activeCount : null },
+            { id: 'menumgmt', label: t('tabMenuMgmt'), badge: appState.menu.length },
+            { id: 'pilot', label: t('tabPilotTools'), badge: null }
+          ];
+
+      const navEl = document.getElementById('nav-tabs');
+      navEl.innerHTML = tabs.map(tab => {
+        const isActive = session.activeTab === tab.id;
+        return `
+          <button type="button" onclick="switchTab('${tab.id}')" class="min-h-[42px] px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition flex items-center gap-2 ${
+            isActive
+              ? 'bg-slate-900 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-white hover:text-slate-900'
+          }">
+            <span>${escapeHtml(tab.label)}</span>
+            ${tab.badge !== null ? `<span class="px-1.5 py-0.5 rounded-md text-[11px] font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}">${tab.badge}</span>` : ''}
+          </button>
+        `;
+      }).join('');
+
+      renderMainView();
+    }
+
+    function switchTab(tabId) {
+      session.activeTab = tabId;
+      renderAppShell();
+    }
+
+    function renderMainView() {
+      const main = document.getElementById('main-content');
+      if (session.role === 'waiter') {
+        if (session.activeTab === 'floor') renderFloorPlanView(main, false);
+        else if (session.activeTab === 'active') renderWaiterActiveOrdersView(main);
+        else if (session.activeTab === 'menu') renderWaiterFullMenuView(main);
+      } else {
+        if (session.activeTab === 'analytics') renderManagerAnalyticsView(main);
+        else if (session.activeTab === 'livefloor') renderFloorPlanView(main, true);
+        else if (session.activeTab === 'menumgmt') renderManagerMenuView(main);
+        else if (session.activeTab === 'pilot') renderManagerPilotView(main);
+      }
+    }
+
+    /* =====================================================================
+     * 8. VISUAL ARCHITECTURAL SERVICE AREA FLOOR PLAN (WAITER & MANAGER)
+     * ===================================================================== */
+    function renderFloorPlanView(container, isManagerMode) {
+      const allTbls = Object.values(appState.tables);
+      const counts = {
+        all: allTbls.length,
+        available: allTbls.filter(tb => tb.status === 'available').length,
+        occupied: allTbls.filter(tb => tb.status === 'occupied').length,
+        bill_requested: allTbls.filter(tb => tb.status === 'bill_requested').length
+      };
+
+      const renderTableCard = (cfg) => {
+        const tb = appState.tables[cfg.id];
+        const totals = calcTableTotals(tb);
+        const elapsed = tb.openedAt ? getElapsedMinutes(tb.openedAt) : 0;
+        const dimmed = floorStatusFilter !== 'all' && tb.status !== floorStatusFilter;
+
+        // Visual styling based on status
+        let statusStyles = {
+          card: 'bg-white border-emerald-400/70 hover:border-emerald-600 shadow-sm',
+          badge: 'bg-emerald-100 text-emerald-800',
+          dot: 'bg-emerald-500',
+          label: t('statusAvailable'),
+          chairColor: 'bg-emerald-300'
+        };
+        if (tb.status === 'occupied') {
+          statusStyles = {
+            card: 'bg-amber-50/80 border-amber-400 hover:border-amber-600 shadow-md',
+            badge: 'bg-amber-200/80 text-amber-900',
+            dot: 'bg-amber-500',
+            label: t('statusOccupied'),
+            chairColor: 'bg-amber-400'
+          };
+        } else if (tb.status === 'bill_requested') {
+          statusStyles = {
+            card: 'bg-rose-50/90 border-rose-500 hover:border-rose-600 shadow-md pulse-bill',
+            badge: 'bg-rose-100 text-rose-800',
+            dot: 'bg-rose-500',
+            label: t('statusBill'),
+            chairColor: 'bg-rose-400'
+          };
+        }
+
+        // Shape-specific silhouette & chair pips
+        const isRound = cfg.shape === 'round' || cfg.shape === 'patio-round';
+        const isVipLarge = cfg.shape === 'vip-rect';
+        const roundedClass = isRound ? 'rounded-3xl' : 'rounded-2xl';
+        const sizeClass = isVipLarge ? 'min-h-[156px]' : (isRound ? 'min-h-[146px]' : 'min-h-[150px]');
+
+        // Architectural chair indicators
+        let chairsMarkup = '';
+        if (cfg.seats === 2) {
+          chairsMarkup = `
+            <span class="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-full ${statusStyles.chairColor}"></span>
+          `;
+        } else if (cfg.seats === 4 && !isRound) {
+          chairsMarkup = `
+            <span class="absolute -top-1.5 left-1/4 w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -top-1.5 right-1/4 w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -bottom-1.5 left-1/4 w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -bottom-1.5 right-1/4 w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+          `;
+        } else if (cfg.seats === 4 && isRound) {
+          chairsMarkup = `
+            <span class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-7 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-7 rounded-full ${statusStyles.chairColor}"></span>
+          `;
+        } else if (cfg.seats === 6) {
+          chairsMarkup = `
+            <span class="absolute -top-1.5 left-[18%] w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -top-1.5 right-[18%] w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -bottom-1.5 left-[18%] w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+            <span class="absolute -bottom-1.5 right-[18%] w-7 h-1.5 rounded-full ${statusStyles.chairColor}"></span>
+          `;
+        }
+
+        const clickHandler = isManagerMode
+          ? `openManagerInspectModal('${cfg.id}')`
+          : `openOrderDrawer('${cfg.id}')`;
+
+        return `
+          <button type="button" onclick="${clickHandler}" class="relative text-left w-full p-3.5 sm:p-4 border-2 transition-all duration-150 ${roundedClass} ${sizeClass} ${statusStyles.card} ${dimmed ? 'opacity-30 scale-[0.98]' : 'hover:-translate-y-0.5'} flex flex-col justify-between">
+            ${chairsMarkup}
+
+            <!-- Top Row: Table ID + Capacity -->
+            <div class="flex items-start justify-between gap-2 w-full">
+              <div class="flex items-center gap-2">
+                <span class="font-display font-extrabold text-lg sm:text-xl text-slate-900 leading-none">${cfg.id}</span>
+                ${isVipLarge ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-brand-100 text-brand-700">VIP</span>` : ''}
+              </div>
+              <span class="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 bg-white/80 px-2 py-0.5 rounded-lg border border-slate-200/70">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+                ${tb.status === 'available' ? cfg.seats : `${tb.guests}/${cfg.seats}`}
+              </span>
+            </div>
+
+            <!-- Middle Row: Status Pill & Timer -->
+            <div class="my-2 flex flex-wrap items-center justify-between gap-1.5">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${statusStyles.badge}">
+                <span class="w-1.5 h-1.5 rounded-full ${statusStyles.dot}"></span>
+                ${escapeHtml(statusStyles.label)}
+              </span>
+              ${tb.status !== 'available' ? `
+                <span class="inline-flex items-center gap-1 text-xs font-mono font-bold text-slate-700 bg-white/80 px-1.5 py-0.5 rounded-md">
+                  <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  ${elapsed}m
+                </span>
+              ` : ''}
+            </div>
+
+            <!-- Bottom Row: Waiter + Total Price OR Prompt -->
+            <div class="pt-2 border-t border-slate-200/70 flex items-center justify-between gap-2 w-full">
+              ${tb.status !== 'available' ? `
+                <span class="text-xs font-semibold text-slate-600 truncate">${escapeHtml(tb.waiter || '-')}</span>
+                <span class="font-display font-bold text-sm sm:text-base text-slate-900">${formatTRY(totals.total)}</span>
+              ` : `
+                <span class="text-xs text-slate-400 font-medium">${isManagerMode ? escapeHtml(t('tapToInspect')) : escapeHtml(t('tapToOpen'))}</span>
+                <span class="text-xs font-semibold text-emerald-600">${cfg.seats} ${escapeHtml(t('seats'))}</span>
+              `}
+            </div>
+          </button>
+        `;
+      };
+
+      const windowTables = TABLES_CONFIG.filter(c => c.zone === 'window');
+      const mainSmallTables = TABLES_CONFIG.filter(c => c.zone === 'main' && c.seats === 2);
+      const mainVipTables = TABLES_CONFIG.filter(c => c.zone === 'main' && c.seats === 6);
+      const gardenTables = TABLES_CONFIG.filter(c => c.zone === 'garden');
+
+      container.innerHTML = `
+        <!-- Summary & Status Filter Bar -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+          <div>
+            <h1 class="font-display font-extrabold text-xl sm:text-2xl text-slate-900">${escapeHtml(isManagerMode ? t('tabLiveFloor') : t('tabFloorPlan'))}</h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">${escapeHtml(isManagerMode ? t('floorTipManager') : t('floorTipWaiter'))}</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            ${[
+              { key: 'all', label: t('allTables'), count: counts.all, activeCls: 'bg-slate-900 text-white border-slate-900', dot: 'bg-slate-400' },
+              { key: 'available', label: t('statusAvailable'), count: counts.available, activeCls: 'bg-emerald-600 text-white border-emerald-600', dot: 'bg-emerald-500' },
+              { key: 'occupied', label: t('statusOccupied'), count: counts.occupied, activeCls: 'bg-amber-500 text-white border-amber-500', dot: 'bg-amber-500' },
+              { key: 'bill_requested', label: t('statusBill'), count: counts.bill_requested, activeCls: 'bg-rose-600 text-white border-rose-600', dot: 'bg-rose-500' }
+            ].map(f => `
+              <button type="button" onclick="setFloorFilter('${f.key}')" class="min-h-[40px] px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${
+                floorStatusFilter === f.key
+                  ? f.activeCls
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+              }">
+                <span class="w-2 h-2 rounded-full ${floorStatusFilter === f.key ? 'bg-white' : f.dot}"></span>
+                <span>${escapeHtml(f.label)}</span>
+                <span class="px-1.5 py-0.2 rounded-md text-[11px] ${floorStatusFilter === f.key ? 'bg-white/20' : 'bg-slate-100 text-slate-800'}">${f.count}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Architectural Floor Plan Canvas -->
+        <div class="floor-canvas rounded-3xl border border-slate-200/90 p-4 sm:p-6 shadow-inner space-y-6">
+
+          <!-- Non-Clickable Kitchen & Bar Pass Architectural Indicator -->
+          <div class="bg-slate-900 text-white rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 shadow-sm select-none">
+            <div class="flex items-center gap-2.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+              <span class="font-display font-bold text-xs sm:text-sm tracking-widest uppercase">${escapeHtml(t('kitchenPass'))}</span>
+            </div>
+            <div class="flex items-center gap-3 text-[11px] text-slate-300 font-medium">
+              <span>• Hot Pass</span>
+              <span>• Espresso & Bar</span>
+              <span>• Cold Garde Manger</span>
+            </div>
+          </div>
+
+          <!-- Architectural Zones Layout -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+            <!-- ZONE 1: Window VIP Zone (T1-T4) -->
+            <div class="lg:col-span-5 bg-white/75 backdrop-blur-sm rounded-2xl border border-sky-200/80 p-4 sm:p-5 relative">
+              <!-- Subtle Window Glass Architectural Bar -->
+              <div class="absolute top-0 left-6 right-6 h-1.5 rounded-b-full bg-gradient-to-r from-sky-200 via-sky-400 to-sky-200"></div>
+              <div class="mb-4 pt-1 flex items-center justify-between">
+                <div>
+                  <h2 class="font-display font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-sky-500"></span>
+                    ${escapeHtml(t('zoneWindowVip'))}
+                  </h2>
+                  <p class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(t('zoneWindowSub'))}</p>
+                </div>
+                <span class="text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-lg">T1–T4</span>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                ${windowTables.map(renderTableCard).join('')}
+              </div>
+            </div>
+
+            <!-- ZONE 2: Main Dining Hall (T5-T8 Round + T9-T10 Large VIP) -->
+            <div class="lg:col-span-7 bg-white/75 backdrop-blur-sm rounded-2xl border border-amber-200/80 p-4 sm:p-5">
+              <div class="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 class="font-display font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-brand-600"></span>
+                    ${escapeHtml(t('zoneMainHall'))}
+                  </h2>
+                  <p class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(t('zoneMainSub'))}</p>
+                </div>
+                <span class="text-[11px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-lg">T5–T10</span>
+              </div>
+
+              <!-- Bistro 2-Seaters Row -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5">
+                ${mainSmallTables.map(renderTableCard).join('')}
+              </div>
+
+              <!-- Grand VIP 6-Seaters Row -->
+              <div class="pt-4 border-t border-dashed border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                ${mainVipTables.map(renderTableCard).join('')}
+              </div>
+            </div>
+
+            <!-- ZONE 3: Garden Terrace (T11-T12 Patio Round) -->
+            <div class="lg:col-span-12 bg-emerald-50/45 backdrop-blur-sm rounded-2xl border border-emerald-200/90 p-4 sm:p-5">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <div>
+                  <h2 class="font-display font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    ${escapeHtml(t('zoneGarden'))}
+                  </h2>
+                  <p class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(t('zoneGardenSub'))}</p>
+                </div>
+                <span class="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg self-start sm:self-auto">T11–T12</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                ${gardenTables.map(renderTableCard).join('')}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      `;
+    }
+
+    function setFloorFilter(key) {
+      floorStatusFilter = key;
+      renderMainView();
+    }
+
+    /* =====================================================================
+     * 9. WAITER TAB 2: ACTIVE ORDERS VIEW
+     * ===================================================================== */
+    function renderWaiterActiveOrdersView(container) {
+      const activeTables = TABLES_CONFIG
+        .map(cfg => ({ cfg, tb: appState.tables[cfg.id] }))
+        .filter(x => x.tb.status !== 'available')
+        .sort((a, b) => (a.tb.openedAt || 0) - (b.tb.openedAt || 0));
+
+      if (activeTables.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center max-w-lg mx-auto mt-6">
+            <div class="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+              <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <h2 class="font-display font-bold text-lg text-slate-900">${escapeHtml(t('activeOrdersTitle'))}</h2>
+            <p class="text-sm text-slate-500 mt-1.5">${escapeHtml(t('activeOrdersEmpty'))}</p>
+            <button type="button" onclick="switchTab('floor')" class="mt-5 min-h-[44px] px-5 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition">${escapeHtml(t('tabFloorPlan'))}</button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="mb-5">
+          <h1 class="font-display font-extrabold text-xl sm:text-2xl text-slate-900">${escapeHtml(t('activeOrdersTitle'))} (${activeTables.length})</h1>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          ${activeTables.map(({ cfg, tb }) => {
+            const totals = calcTableTotals(tb);
+            const elapsed = getElapsedMinutes(tb.openedAt);
+            const isBill = tb.status === 'bill_requested';
+            return `
+              <div class="bg-white rounded-2xl border ${isBill ? 'border-rose-300 ring-2 ring-rose-100' : 'border-slate-200'} shadow-sm p-5 flex flex-col justify-between">
+                <div>
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="font-display font-extrabold text-xl text-slate-900">${cfg.id}</span>
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isBill ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}">
+                          ${escapeHtml(isBill ? t('statusBill') : t('statusOccupied'))}
+                        </span>
+                      </div>
+                      <p class="text-xs text-slate-500 mt-1">${escapeHtml(getZoneLabel(cfg.zone))} • ${tb.guests} ${escapeHtml(t('guests'))} • ${escapeHtml(tb.waiter || '-')}</p>
+                    </div>
+                    <span class="text-xs font-mono font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-700">${elapsed}m</span>
+                  </div>
+
+                  <!-- Items preview -->
+                  <div class="mt-4 pt-3 border-t border-slate-100 space-y-1.5 max-h-40 overflow-y-auto">
+                    ${tb.items.length === 0
+                      ? `<p class="text-xs text-slate-400 italic">${escapeHtml(t('emptyCart'))}</p>`
+                      : tb.items.map(line => {
+                          const m = getMenuItem(line.menuId);
+                          if (!m) return '';
+                          return `
+                            <div class="flex items-center justify-between text-xs sm:text-sm">
+                              <span class="text-slate-700 truncate pr-2"><strong class="text-slate-900">${line.qty}×</strong> ${escapeHtml(getItemName(m))}</span>
+                              <span class="font-semibold text-slate-700 shrink-0">${formatTRY(m.price * line.qty)}</span>
+                            </div>
+                          `;
+                        }).join('')
+                    }
+                  </div>
+
+                  ${tb.note ? `
+                    <div class="mt-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200/70 text-xs text-amber-900">
+                      <span class="font-bold">${escapeHtml(t('kitchenNote'))}:</span> ${escapeHtml(tb.note)}
+                    </div>
+                  ` : ''}
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-100">
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-semibold text-slate-500">${totals.totalQty} ${escapeHtml(t('itemsCount'))}</span>
+                    <span class="font-display font-extrabold text-lg text-slate-900">${formatTRY(totals.total)}</span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button type="button" onclick="openOrderDrawer('${cfg.id}')" class="min-h-[42px] px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition">${escapeHtml(t('editOrder'))}</button>
+                    ${isBill
+                      ? `<button type="button" onclick="openOrderDrawer('${cfg.id}', 'checkout')" class="min-h-[42px] px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition">${escapeHtml(t('checkout'))}</button>`
+                      : `<button type="button" onclick="quickRequestBill('${cfg.id}')" class="min-h-[42px] px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition">${escapeHtml(t('requestBill'))}</button>`
+                    }
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function quickRequestBill(tableId) {
+      const tb = appState.tables[tableId];
+      if (!tb) return;
+      if (tb.items.length === 0) {
+        showToast(t('toastAddItemsFirst'), 'warning');
+        return;
+      }
+      tb.status = 'bill_requested';
+      saveState();
+      showToast(t('toastBillRequested'), 'success');
+      renderAppShell();
+    }
+
+    /* =====================================================================
+     * 10. WAITER TAB 3: FULL BROWSABLE DIGITAL MENU
+     * ===================================================================== */
+    function renderWaiterFullMenuView(container) {
+      const filtered = appState.menu.filter(item => {
+        const matchCat = waiterFullMenuCategory === 'All' || item.category === waiterFullMenuCategory;
+        const q = waiterFullMenuSearch.trim().toLowerCase();
+        const matchSearch = !q ||
+          getItemName(item).toLowerCase().includes(q) ||
+          getItemDesc(item).toLowerCase().includes(q) ||
+          (item.tags || []).some(tg => tg.toLowerCase().includes(q));
+        return matchCat && matchSearch;
+      });
+
+      container.innerHTML = `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div>
+            <h1 class="font-display font-extrabold text-xl sm:text-2xl text-slate-900">${escapeHtml(t('tabFullMenu'))}</h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">${appState.menu.length} ${appState.lang === 'tr' ? 'özenle hazırlanmış gastronomi ürünü' : 'curated gastronomy items'}</p>
+          </div>
+          <div class="relative w-full sm:w-72">
+            <input type="text" value="${escapeHtml(waiterFullMenuSearch)}" oninput="waiterFullMenuSearch=this.value; renderMainView()" placeholder="${escapeHtml(t('searchMenuPlaceholder'))}" class="w-full min-h-[44px] pl-10 pr-4 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:border-brand-600" />
+            <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          </div>
+        </div>
+
+        <!-- Category Filter Chips -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-2 mb-4">
+          ${['All', ...CATEGORIES].map(cat => `
+            <button type="button" onclick="waiterFullMenuCategory='${cat}'; renderMainView()" class="min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap border transition ${
+              waiterFullMenuCategory === cat
+                ? 'bg-brand-600 text-white border-brand-600'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+            }">
+              ${escapeHtml(cat === 'All' ? t('allCategories') : t(cat))}
+            </button>
+          `).join('')}
+        </div>
+
+        <!-- Menu Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          ${filtered.map(item => `
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col justify-between ${!item.active ? 'opacity-60 bg-slate-50' : 'hover:shadow-md transition'}">
+              <div>
+                <div class="flex items-start justify-between gap-2">
+                  <span class="text-[11px] font-bold uppercase tracking-wider text-brand-600">${escapeHtml(t(item.category))}</span>
+                  ${!item.active
+                    ? `<span class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 text-[11px] font-bold">${escapeHtml(t('soldOut'))}</span>`
+                    : `<span class="text-[11px] font-medium text-slate-400">${escapeHtml(t('prepTimeLabel'))}: ${item.prepTime} ${escapeHtml(t('minUnit'))}</span>`
+                  }
+                </div>
+                <h3 class="font-display font-bold text-base text-slate-900 mt-1">${escapeHtml(getItemName(item))}</h3>
+                <p class="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">${escapeHtml(getItemDesc(item))}</p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-1">
+                  ${(item.tags || []).map(tag => renderTagBadge(tag)).join('')}
+                </div>
+                <span class="font-display font-extrabold text-base text-slate-900 shrink-0">${formatTRY(item.price)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderTagBadge(tag) {
+      const lower = tag.toLowerCase();
+      let cls = 'bg-slate-100 text-slate-600';
+      if (lower.includes('chef')) cls = 'bg-amber-100 text-amber-800';
+      else if (lower.includes('vegan') || lower.includes('vegetarian')) cls = 'bg-emerald-100 text-emerald-800';
+      else if (lower === 'gf') cls = 'bg-sky-100 text-sky-800';
+      else if (lower.includes('seafood')) cls = 'bg-indigo-100 text-indigo-800';
+      return `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${cls}">${escapeHtml(tag)}</span>`;
+    }
+
+    /* =====================================================================
+     * 11. TABLE ORDER MANAGEMENT DRAWER (OPEN, ORDER, BILL, CHECKOUT)
+     * ===================================================================== */
+    function openOrderDrawer(tableId, initialMode = 'order') {
+      activeDrawerTableId = tableId;
+      drawerViewMode = initialMode;
+      drawerMobilePanel = 'menu';
+      drawerMenuCategory = 'All';
+      drawerMenuSearch = '';
+
+      const cfg = TABLES_CONFIG.find(c => c.id === tableId);
+      selectedOpenGuests = cfg ? Math.min(cfg.seats, 2) : 2;
+      selectedPaymentMethod = 'Credit Card';
+
+      const drawer = document.getElementById('order-drawer');
+      drawer.classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+      renderOrderDrawer();
+    }
+
+    function closeOrderDrawer() {
+      activeDrawerTableId = null;
+      const drawer = document.getElementById('order-drawer');
+      drawer.classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    function renderOrderDrawer() {
+      if (!activeDrawerTableId) return;
+      const cfg = TABLES_CONFIG.find(c => c.id === activeDrawerTableId);
+      const tb = appState.tables[activeDrawerTableId];
+      const totals = calcTableTotals(tb);
+      const elapsed = tb.openedAt ? getElapsedMinutes(tb.openedAt) : 0;
+
+      // Header
+      const statusBadge = tb.status === 'available'
+        ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">${escapeHtml(t('statusAvailable'))}</span>`
+        : tb.status === 'bill_requested'
+          ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800">${escapeHtml(t('statusBill'))}</span>`
+          : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">${escapeHtml(t('statusOccupied'))}</span>`;
+
+      document.getElementById('order-drawer-header').innerHTML = `
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <h2 class="font-display font-extrabold text-xl text-slate-900">${cfg.id}</h2>
+            ${statusBadge}
+            ${tb.status !== 'available' ? `<span class="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">${elapsed}m</span>` : ''}
+          </div>
+          <p class="text-xs text-slate-500 mt-0.5 truncate">
+            ${escapeHtml(getZoneLabel(cfg.zone))} • ${cfg.seats} ${escapeHtml(t('seats'))}
+            ${tb.status !== 'available' ? ` • ${tb.guests} ${escapeHtml(t('guests'))} • ${escapeHtml(t('assignedWaiter'))}: ${escapeHtml(tb.waiter || session.userName)}` : ''}
+          </p>
+        </div>
+        <button type="button" onclick="closeOrderDrawer()" class="min-h-[44px] min-w-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      `;
+
+      const body = document.getElementById('order-drawer-body');
+
+      // CASE A: Table is Available -> Show Open Table panel
+      if (tb.status === 'available') {
+        body.innerHTML = `
+          <div class="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+            <div class="max-w-md w-full bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center">
+              <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 font-display font-extrabold text-xl flex items-center justify-center mx-auto mb-4">${cfg.id}</div>
+              <h3 class="font-display font-bold text-xl text-slate-900">${escapeHtml(t('openTableTitle'))}</h3>
+              <p class="text-sm text-slate-500 mt-1.5">${escapeHtml(t('openTableDesc'))}</p>
+
+              <div class="mt-6 text-left">
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5 text-center">${escapeHtml(t('selectGuests'))}</label>
+                <div class="grid grid-cols-4 gap-2">
+                  ${[1, 2, 3, 4, 5, 6, 7, 8].map(n => `
+                    <button type="button" onclick="selectedOpenGuests=${n}; renderOrderDrawer()" class="min-h-[48px] rounded-xl font-display font-bold text-base border transition ${
+                      selectedOpenGuests === n
+                        ? 'bg-brand-600 text-white border-brand-600 shadow-md'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-brand-400'
+                    }">${n}</button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <button type="button" onclick="openTableNow('${cfg.id}')" class="mt-6 w-full min-h-[50px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm sm:text-base shadow-md transition">
+                ${escapeHtml(t('startTableBtn'))}
+              </button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // CASE B: Checkout / Payment Sub-view
+      if (drawerViewMode === 'checkout') {
+        body.innerHTML = `
+          <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div class="max-w-lg mx-auto">
+              <button type="button" onclick="drawerViewMode='order'; renderOrderDrawer()" class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 mb-4">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+                ${escapeHtml(t('backToOrder'))}
+              </button>
+
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-5 sm:p-6">
+                <h3 class="font-display font-bold text-xl text-slate-900">${escapeHtml(t('paymentTitle'))}</h3>
+                <p class="text-xs sm:text-sm text-slate-500 mt-1">${escapeHtml(t('paymentSubtitle'))}</p>
+
+                <!-- Receipt Preview -->
+                <div class="mt-5 bg-white rounded-xl border border-slate-200 p-4 space-y-2">
+                  <div class="flex justify-between text-xs text-slate-500 pb-2 border-b border-slate-100">
+                    <span>${cfg.id} • ${tb.guests} ${escapeHtml(t('guests'))}</span>
+                    <span>${escapeHtml(t('diningDuration'))}: <strong>${elapsed} ${escapeHtml(t('minUnit'))}</strong></span>
+                  </div>
+                  <div class="max-h-44 overflow-y-auto space-y-1.5 py-1">
+                    ${tb.items.map(line => {
+                      const m = getMenuItem(line.menuId);
+                      if (!m) return '';
+                      return `
+                        <div class="flex justify-between text-sm">
+                          <span class="text-slate-700"><strong>${line.qty}×</strong> ${escapeHtml(getItemName(m))}</span>
+                          <span class="font-semibold text-slate-900">${formatTRY(m.price * line.qty)}</span>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                  <div class="pt-2 border-t border-slate-100 space-y-1 text-sm">
+                    <div class="flex justify-between text-slate-500"><span>${escapeHtml(t('subtotal'))}</span><span>${formatTRY(totals.subtotal)}</span></div>
+                    ${tb.serviceChargeEnabled ? `<div class="flex justify-between text-slate-500"><span>${escapeHtml(t('serviceCharge'))}</span><span>${formatTRY(totals.serviceCharge)}</span></div>` : ''}
+                    <div class="flex justify-between font-display font-extrabold text-lg text-slate-900 pt-1"><span>${escapeHtml(t('total'))}</span><span>${formatTRY(totals.total)}</span></div>
+                  </div>
+                </div>
+
+                <!-- Payment Method Selector -->
+                <div class="mt-5 grid grid-cols-2 gap-3">
+                  <button type="button" onclick="selectedPaymentMethod='Credit Card'; renderOrderDrawer()" class="min-h-[60px] p-3 rounded-xl border-2 font-bold text-sm flex flex-col items-center justify-center gap-1 transition ${
+                    selectedPaymentMethod === 'Credit Card'
+                      ? 'border-brand-600 bg-brand-50 text-brand-900'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                  }">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/></svg>
+                    <span>${escapeHtml(t('creditCard'))}</span>
+                  </button>
+                  <button type="button" onclick="selectedPaymentMethod='Cash'; renderOrderDrawer()" class="min-h-[60px] p-3 rounded-xl border-2 font-bold text-sm flex flex-col items-center justify-center gap-1 transition ${
+                    selectedPaymentMethod === 'Cash'
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                  }">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/></svg>
+                    <span>${escapeHtml(t('cash'))}</span>
+                  </button>
+                </div>
+
+                <button type="button" onclick="completeTableCheckout('${cfg.id}')" class="mt-6 w-full min-h-[50px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm sm:text-base shadow-md transition">
+                  ${escapeHtml(t('completePayment'))} (${formatTRY(totals.total)})
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // CASE C: Main Order Taking View (Split on desktop, Mobile Tabbed Toggle on phone)
+      const filteredMenu = appState.menu.filter(item => {
+        const matchCat = drawerMenuCategory === 'All' || item.category === drawerMenuCategory;
+        const q = drawerMenuSearch.trim().toLowerCase();
+        const matchSearch = !q ||
+          getItemName(item).toLowerCase().includes(q) ||
+          getItemDesc(item).toLowerCase().includes(q) ||
+          (item.tags || []).some(tg => tg.toLowerCase().includes(q));
+        return matchCat && matchSearch;
+      });
+
+      body.innerHTML = `
+        <!-- Mobile Switcher Bar (Menu Picker vs Order Cart) -->
+        <div class="lg:hidden grid grid-cols-2 border-b border-slate-200 bg-slate-50 p-1.5 gap-1.5 shrink-0">
+          <button type="button" onclick="drawerMobilePanel='menu'; renderOrderDrawer()" class="min-h-[42px] rounded-xl text-xs font-bold transition ${drawerMobilePanel === 'menu' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 bg-white border border-slate-200'}">
+            ${escapeHtml(t('menuPickerTab'))}
+          </button>
+          <button type="button" onclick="drawerMobilePanel='cart'; renderOrderDrawer()" class="min-h-[42px] rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${drawerMobilePanel === 'cart' ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-700 bg-white border border-slate-200'}">
+            <span>${escapeHtml(t('currentOrderTab'))}</span>
+            <span class="px-1.5 py-0.5 rounded-md text-[11px] ${drawerMobilePanel === 'cart' ? 'bg-white/20' : 'bg-brand-100 text-brand-800'}">${totals.totalQty} • ${formatTRY(totals.total)}</span>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-hidden flex flex-col lg:flex-row">
+
+          <!-- LEFT: Menu Picker -->
+          <div class="${drawerMobilePanel === 'menu' ? 'flex' : 'hidden'} lg:flex flex-col lg:w-3/5 border-r border-slate-200 bg-slate-50/50 overflow-hidden">
+            <div class="p-3 sm:p-4 bg-white border-b border-slate-200 space-y-2.5 shrink-0">
+              <div class="relative">
+                <input type="text" value="${escapeHtml(drawerMenuSearch)}" oninput="drawerMenuSearch=this.value; renderOrderDrawer()" placeholder="${escapeHtml(t('searchMenuPlaceholder'))}" class="w-full min-h-[42px] pl-9 pr-3 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:bg-white focus:border-brand-600" />
+                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+              </div>
+              <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                ${['All', ...CATEGORIES].map(cat => `
+                  <button type="button" onclick="drawerMenuCategory='${cat}'; renderOrderDrawer()" class="min-h-[36px] px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+                    drawerMenuCategory === cat
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }">${escapeHtml(cat === 'All' ? t('allCategories') : t(cat))}</button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
+              ${filteredMenu.map(item => {
+                const inCart = tb.items.find(l => l.menuId === item.id);
+                const qty = inCart ? inCart.qty : 0;
+                return `
+                  <div class="bg-white rounded-xl border ${qty > 0 ? 'border-brand-500 ring-1 ring-brand-200' : 'border-slate-200'} p-3 flex flex-col justify-between ${!item.active ? 'opacity-55' : ''}">
+                    <div>
+                      <div class="flex items-start justify-between gap-2">
+                        <h4 class="font-display font-bold text-sm text-slate-900 leading-snug">${escapeHtml(getItemName(item))}</h4>
+                        ${qty > 0 ? `<span class="px-1.5 py-0.5 rounded-md bg-brand-600 text-white text-[11px] font-bold shrink-0">${qty}×</span>` : ''}
+                      </div>
+                      <p class="text-xs text-slate-500 mt-1 line-clamp-2">${escapeHtml(getItemDesc(item))}</p>
+                      <div class="flex flex-wrap gap-1 mt-2">
+                        ${(item.tags || []).map(tag => renderTagBadge(tag)).join('')}
+                      </div>
+                    </div>
+                    <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <span class="font-display font-extrabold text-sm text-slate-900">${formatTRY(item.price)}</span>
+                      ${item.active
+                        ? `<button type="button" onclick="addItemToTable('${cfg.id}', '${item.id}')" class="min-h-[38px] px-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                            <span>${escapeHtml(t('add'))}</span>
+                          </button>`
+                        : `<span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700 text-[11px] font-bold">${escapeHtml(t('soldOut'))}</span>`
+                      }
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- RIGHT: Current Order Cart & Controls -->
+          <div class="${drawerMobilePanel === 'cart' ? 'flex' : 'hidden'} lg:flex flex-col lg:w-2/5 bg-white overflow-hidden">
+            <div class="flex-1 overflow-y-auto p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <h3 class="font-display font-bold text-sm uppercase tracking-wider text-slate-500">${escapeHtml(t('currentOrderTab'))} (${totals.totalQty})</h3>
+                ${tb.items.length === 0 ? `<button type="button" onclick="releaseEmptyTable('${cfg.id}')" class="text-xs font-semibold text-rose-600 hover:underline">${escapeHtml(t('cancelEmptyTable'))}</button>` : ''}
+              </div>
+
+              ${tb.items.length === 0
+                ? `<div class="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">${escapeHtml(t('emptyCart'))}</div>`
+                : `<div class="space-y-2">
+                    ${tb.items.map(line => {
+                      const m = getMenuItem(line.menuId);
+                      if (!m) return '';
+                      return `
+                        <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                          <div class="min-w-0 flex-1">
+                            <p class="text-xs sm:text-sm font-bold text-slate-900 truncate">${escapeHtml(getItemName(m))}</p>
+                            <p class="text-xs text-slate-500">${formatTRY(m.price)} × ${line.qty} = <strong class="text-slate-800">${formatTRY(m.price * line.qty)}</strong></p>
+                          </div>
+                          <div class="flex items-center gap-1 shrink-0">
+                            <button type="button" onclick="updateTableItemQty('${cfg.id}', '${line.menuId}', -1)" class="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 font-bold text-slate-700 flex items-center justify-center">−</button>
+                            <span class="w-7 text-center font-bold text-sm">${line.qty}</span>
+                            <button type="button" onclick="updateTableItemQty('${cfg.id}', '${line.menuId}', 1)" class="w-9 h-9 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 font-bold text-slate-700 flex items-center justify-center">+</button>
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>`
+              }
+
+              <!-- Special Kitchen Note -->
+              <div class="pt-2">
+                <label class="block text-xs font-bold text-slate-600 mb-1">${escapeHtml(t('specialNoteLabel'))}</label>
+                <textarea rows="2" onchange="updateTableNote('${cfg.id}', this.value)" placeholder="${escapeHtml(t('specialNotePlaceholder'))}" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-brand-600">${escapeHtml(tb.note || '')}</textarea>
+              </div>
+            </div>
+
+            <!-- Sticky Totals & Action Buttons -->
+            <div class="p-4 border-t border-slate-200 bg-slate-50 space-y-3 shrink-0">
+              <div class="space-y-1.5 text-sm">
+                <div class="flex justify-between text-slate-600">
+                  <span>${escapeHtml(t('subtotal'))}</span>
+                  <span class="font-semibold">${formatTRY(totals.subtotal)}</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-600">
+                  <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" ${tb.serviceChargeEnabled ? 'checked' : ''} onchange="toggleServiceCharge('${cfg.id}', this.checked)" class="w-4 h-4 rounded accent-brand-600" />
+                    <span class="text-xs font-medium">${escapeHtml(t('serviceCharge'))}</span>
+                  </label>
+                  <span class="font-semibold text-xs">${formatTRY(totals.serviceCharge)}</span>
+                </div>
+                <div class="flex justify-between font-display font-extrabold text-lg text-slate-900 pt-1 border-t border-slate-200">
+                  <span>${escapeHtml(t('total'))}</span>
+                  <span>${formatTRY(totals.total)}</span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-2">
+                <button type="button" onclick="sendUpdateOrder('${cfg.id}')" class="w-full min-h-[44px] rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm transition">
+                  ${escapeHtml(t('sendUpdateOrder'))}
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                  <button type="button" onclick="drawerRequestBill('${cfg.id}')" class="min-h-[44px] px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition">
+                    ${escapeHtml(t('requestBill'))}
+                  </button>
+                  <button type="button" onclick="proceedToCheckout('${cfg.id}')" class="min-h-[44px] px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition">
+                    ${escapeHtml(t('closeTableCheckout'))}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function openTableNow(tableId) {
+      const tb = appState.tables[tableId];
+      if (!tb) return;
+      tb.status = 'occupied';
+      tb.guests = selectedOpenGuests;
+      tb.waiter = session.role === 'waiter' ? session.userName : 'Admin';
+      tb.openedAt = Date.now();
+      tb.items = [];
+      tb.note = '';
+      tb.serviceChargeEnabled = false;
+      saveState();
+      showToast(`${tableId}: ${t('toastTableOpened')}`, 'success');
+      renderAppShell();
+      renderOrderDrawer();
+    }
+
+    function addItemToTable(tableId, menuId) {
+      const tb = appState.tables[tableId];
+      if (!tb) return;
+      const existing = tb.items.find(l => l.menuId === menuId);
+      if (existing) existing.qty += 1;
+      else tb.items.push({ menuId, qty: 1 });
+      saveState();
+      renderOrderDrawer();
+      renderAppShell();
+    }
+
+    function updateTableItemQty(tableId, menuId, delta) {
+      const tb = appState.tables[tableId];
+      if (!tb) return;
+      const idx = tb.items.findIndex(l => l.menuId === menuId);
+      if (idx === -1) return;
+      tb.items[idx].qty += delta;
+      if (tb.items[idx].qty <= 0) tb.items.splice(idx, 1);
+      saveState();
+      renderOrderDrawer();
+      renderAppShell();
+    }
+
+    function updateTableNote(tableId, noteText) {
+      const tb = appState.tables[tableId];
+      if (!tb) return;
+      tb.note = noteText;
+      saveState();
+    }
+
+    function toggleServiceCharge(tableId, enabled) {
+      const tb = appState.tables[tableId];
+      if (!tb) return;
+      tb.serviceChargeEnabled = enabled;
+      saveState();
+      renderOrderDrawer();
+      renderAppShell();
+    }
+
+    function sendUpdateOrder(tableId) {
+      const tb = appState.tables[tableId];
+      if (!tb || tb.items.length === 0) {
+        showToast(t('toastAddItemsFirst'), 'warning');
+        return;
+      }
+      saveState();
+      showToast(`${tableId}: ${t('toastOrderSaved')}`, 'success');
+      closeOrderDrawer();
+      renderAppShell();
+    }
+
+    function drawerRequestBill(tableId) {
+      const tb = appState.tables[tableId];
+      if (!tb || tb.items.length === 0) {
+        showToast(t('toastAddItemsFirst'), 'warning');
+        return;
+      }
+      tb.status = 'bill_requested';
+      saveState();
+      showToast(`${tableId}: ${t('toastBillRequested')}`, 'success');
+      closeOrderDrawer();
+      renderAppShell();
+    }
+
+    function proceedToCheckout(tableId) {
+      const tb = appState.tables[tableId];
+      if (!tb || tb.items.length === 0) {
+        showToast(t('toastAddItemsFirst'), 'warning');
+        return;
+      }
+      drawerViewMode = 'checkout';
+      renderOrderDrawer();
+    }
+
+    function completeTableCheckout(tableId) {
+      const tb = appState.tables[tableId];
+      if (!tb || tb.items.length === 0) return;
+
+      const totals = calcTableTotals(tb);
+      const endTime = Date.now();
+      const startTime = tb.openedAt || (endTime - 15 * 60 * 1000);
+      const durationMinutes = Math.max(1, Math.round((endTime - startTime) / 60000));
+
+      const orderItems = tb.items.map(line => {
+        const m = getMenuItem(line.menuId);
+        return {
+          menuId: line.menuId,
+          nameEn: m ? m.name.en : line.menuId,
+          nameTr: m ? m.name.tr : line.menuId,
+          category: m ? m.category : 'Main Courses',
+          price: m ? m.price : 0,
+          qty: line.qty
+        };
+      });
+
+      const orderRecord = {
+        id: 'ORD-' + String(1001 + appState.completedOrders.length),
+        tableId,
+        waiter: tb.waiter || session.userName,
+        guests: tb.guests || 2,
+        startTime,
+        endTime,
+        durationMinutes,
+        paymentMethod: selectedPaymentMethod,
+        items: orderItems,
+        subtotal: totals.subtotal,
+        serviceCharge: totals.serviceCharge,
+        total: totals.total,
+        note: tb.note || ''
+      };
+
+      appState.completedOrders.push(orderRecord);
+
+      // Reset table to Available
+      appState.tables[tableId] = {
+        id: tableId,
+        status: 'available',
+        guests: 0,
+        waiter: null,
+        openedAt: null,
+        items: [],
+        note: '',
+        serviceChargeEnabled: false
+      };
+
+      saveState();
+      showToast(`${tableId}: ${t('toastCheckoutDone')}`, 'success');
+      closeOrderDrawer();
+      renderAppShell();
+    }
+
+    function releaseEmptyTable(tableId) {
+      appState.tables[tableId] = {
+        id: tableId,
+        status: 'available',
+        guests: 0,
+        waiter: null,
+        openedAt: null,
+        items: [],
+        note: '',
+        serviceChargeEnabled: false
+      };
+      saveState();
+      showToast(`${tableId}: ${t('toastTableReleased')}`, 'success');
+      closeOrderDrawer();
+      renderAppShell();
+    }
+
+    /* =====================================================================
+     * 12. MANAGER LIVE FLOOR INSPECTOR MODAL
+     * ===================================================================== */
+    function openManagerInspectModal(tableId) {
+      const cfg = TABLES_CONFIG.find(c => c.id === tableId);
+      const tb = appState.tables[tableId];
+      const totals = calcTableTotals(tb);
+      const elapsed = tb.openedAt ? getElapsedMinutes(tb.openedAt) : 0;
+
+      const content = document.getElementById('manager-inspect-content');
+      content.innerHTML = `
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-display font-extrabold text-xl text-slate-900">${cfg.id}</h3>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                tb.status === 'available' ? 'bg-emerald-100 text-emerald-800'
+                : tb.status === 'bill_requested' ? 'bg-rose-100 text-rose-800'
+                : 'bg-amber-100 text-amber-800'
+              }">${escapeHtml(tb.status === 'available' ? t('statusAvailable') : tb.status === 'bill_requested' ? t('statusBill') : t('statusOccupied'))}</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(getZoneLabel(cfg.zone))} • ${cfg.seats} ${escapeHtml(t('seats'))}</p>
+          </div>
+          <button type="button" onclick="closeManagerInspectModal()" class="w-9 h-9 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-500">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="p-5">
+          ${tb.status === 'available'
+            ? `<p class="text-sm text-slate-500 py-4 text-center">${escapeHtml(t('statusAvailable'))} — ${cfg.seats} ${escapeHtml(t('seats'))}</p>`
+            : `
+              <div class="grid grid-cols-3 gap-2 mb-4 text-center">
+                <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-200/70">
+                  <span class="block text-[11px] text-slate-500">${escapeHtml(t('assignedWaiter'))}</span>
+                  <strong class="text-sm text-slate-900">${escapeHtml(tb.waiter || '-')}</strong>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-200/70">
+                  <span class="block text-[11px] text-slate-500">${escapeHtml(t('guests'))}</span>
+                  <strong class="text-sm text-slate-900">${tb.guests} / ${cfg.seats}</strong>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-200/70">
+                  <span class="block text-[11px] text-slate-500">${escapeHtml(t('diningDuration'))}</span>
+                  <strong class="text-sm text-slate-900">${elapsed} ${escapeHtml(t('minUnit'))}</strong>
+                </div>
+              </div>
+
+              <div class="space-y-1.5 max-h-52 overflow-y-auto border-t border-b border-slate-100 py-3">
+                ${tb.items.map(line => {
+                  const m = getMenuItem(line.menuId);
+                  if (!m) return '';
+                  return `
+                    <div class="flex justify-between text-sm">
+                      <span class="text-slate-700"><strong>${line.qty}×</strong> ${escapeHtml(getItemName(m))}</span>
+                      <span class="font-semibold text-slate-900">${formatTRY(m.price * line.qty)}</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+              ${tb.note ? `<div class="mt-3 p-2.5 rounded-xl bg-amber-50 text-xs text-amber-900"><strong>${escapeHtml(t('kitchenNote'))}:</strong> ${escapeHtml(tb.note)}</div>` : ''}
+
+              <div class="mt-4 flex justify-between items-center font-display font-extrabold text-lg text-slate-900">
+                <span>${escapeHtml(t('total'))}</span>
+                <span>${formatTRY(totals.total)}</span>
+              </div>
+            `
+          }
+        </div>
+
+        <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeManagerInspectModal()" class="min-h-[42px] px-4 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100">${escapeHtml(t('close'))}</button>
+          <button type="button" onclick="closeManagerInspectModal(); openOrderDrawer('${cfg.id}')" class="min-h-[42px] px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold">${escapeHtml(t('openInWaiterView'))}</button>
+        </div>
+      `;
+
+      const modal = document.getElementById('manager-inspect-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeManagerInspectModal() {
+      const modal = document.getElementById('manager-inspect-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    /* =====================================================================
+     * 13. MANAGER TAB 1: ANALYTICS & REPORTING DASHBOARD
+     * ===================================================================== */
+    function computeAnalytics() {
+      const orders = appState.completedOrders || [];
+      const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
+      const completedCount = orders.length;
+      const totalGuests = orders.reduce((s, o) => s + (o.guests || 0), 0);
+      const avgCheck = completedCount > 0 ? Math.round(totalRevenue / completedCount) : 0;
+      const avgDuration = completedCount > 0
+        ? Math.round(orders.reduce((s, o) => s + (o.durationMinutes || 0), 0) / completedCount)
+        : 0;
+      const turnoverRate = (completedCount / TABLES_CONFIG.length).toFixed(2);
+
+      // Active live tables stats
+      const activeTbls = Object.values(appState.tables).filter(tb => tb.status !== 'available');
+      const openRevenue = activeTbls.reduce((s, tb) => s + calcTableTotals(tb).total, 0);
+
+      // Best-selling items aggregation
+      const itemMap = {};
+      const categoryRevMap = {};
+      CATEGORIES.forEach(c => categoryRevMap[c] = 0);
+
+      orders.forEach(o => {
+        (o.items || []).forEach(it => {
+          const key = it.menuId;
+          if (!itemMap[key]) {
+            itemMap[key] = {
+              menuId: key,
+              nameEn: it.nameEn,
+              nameTr: it.nameTr,
+              category: it.category,
+              units: 0,
+              revenue: 0
+            };
+          }
+          itemMap[key].units += it.qty;
+          itemMap[key].revenue += it.price * it.qty;
+          categoryRevMap[it.category] = (categoryRevMap[it.category] || 0) + (it.price * it.qty);
+        });
+      });
+
+      const bestSellers = Object.values(itemMap).sort((a, b) => b.units - a.units || b.revenue - a.revenue);
+
+      // Table performance (T1-T12)
+      const tablePerf = TABLES_CONFIG.map(cfg => {
+        const tblOrders = orders.filter(o => o.tableId === cfg.id);
+        const seatings = tblOrders.length;
+        const guests = tblOrders.reduce((s, o) => s + (o.guests || 0), 0);
+        const avgMin = seatings > 0 ? Math.round(tblOrders.reduce((s, o) => s + o.durationMinutes, 0) / seatings) : 0;
+        const rev = tblOrders.reduce((s, o) => s + o.total, 0);
+        return { id: cfg.id, zone: cfg.zone, seats: cfg.seats, seatings, guests, avgMin, rev };
+      });
+
+      // Waiter performance
+      const waiterMap = {
+        Ali: { name: 'Ali', orders: 0, guests: 0, revenue: 0 },
+        Zeynep: { name: 'Zeynep', orders: 0, guests: 0, revenue: 0 }
+      };
+      orders.forEach(o => {
+        const w = o.waiter || 'Admin';
+        if (!waiterMap[w]) waiterMap[w] = { name: w, orders: 0, guests: 0, revenue: 0 };
+        waiterMap[w].orders += 1;
+        waiterMap[w].guests += (o.guests || 0);
+        waiterMap[w].revenue += o.total;
+      });
+      const waiterPerf = Object.values(waiterMap).sort((a, b) => b.revenue - a.revenue);
+
+      return {
+        totalRevenue, completedCount, totalGuests, avgCheck, avgDuration, turnoverRate,
+        activeCount: activeTbls.length, openRevenue,
+        bestSellers, categoryRevMap, tablePerf, waiterPerf, orders
+      };
+    }
+
+    function renderManagerAnalyticsView(container) {
+      const stats = computeAnalytics();
+
+      container.innerHTML = `
+        <div class="space-y-6">
+          <!-- KPI Summary Cards -->
+          <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <p class="text-xs font-semibold text-slate-500">${escapeHtml(t('kpiTotalSales'))}</p>
+              <p class="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 mt-1">${formatTRY(stats.totalRevenue)}</p>
+              <p class="text-[11px] font-medium text-emerald-600 mt-1">+${formatTRY(stats.openRevenue)} ${escapeHtml(t('openRevenueLabel'))}</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <p class="text-xs font-semibold text-slate-500">${escapeHtml(t('kpiCompletedOrders'))}</p>
+              <p class="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 mt-1">${stats.completedCount}</p>
+              <p class="text-[11px] font-medium text-slate-500 mt-1">${stats.totalGuests} ${escapeHtml(t('guestsServedLabel'))}</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <p class="text-xs font-semibold text-slate-500">${escapeHtml(t('kpiAvgCheck'))}</p>
+              <p class="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 mt-1">${formatTRY(stats.avgCheck)}</p>
+              <p class="text-[11px] font-medium text-slate-500 mt-1">${escapeHtml(t('avgDurationLabel'))}: ${stats.avgDuration} ${escapeHtml(t('minUnit'))}</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-brand-200 bg-brand-50/40 p-4 shadow-sm">
+              <p class="text-xs font-semibold text-brand-700">${escapeHtml(t('kpiTurnover'))}</p>
+              <p class="font-display font-extrabold text-2xl sm:text-3xl text-brand-900 mt-1">${stats.turnoverRate}×</p>
+              <p class="text-[11px] font-medium text-brand-700 mt-1">${stats.completedCount} / 12 ${appState.lang === 'tr' ? 'masa' : 'tables'}</p>
+            </div>
+            <div class="col-span-2 lg:col-span-1 bg-slate-900 text-white rounded-2xl p-4 shadow-sm">
+              <p class="text-xs font-semibold text-slate-300">${escapeHtml(t('kpiActiveTables'))}</p>
+              <p class="font-display font-extrabold text-2xl sm:text-3xl text-white mt-1">${stats.activeCount} <span class="text-base font-semibold text-slate-400">/ 12</span></p>
+              <p class="text-[11px] font-medium text-amber-300 mt-1">${formatTRY(stats.openRevenue)} ${escapeHtml(t('openRevenueLabel'))}</p>
+            </div>
+          </div>
+
+          ${stats.completedCount === 0 ? `
+            <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+              <p class="text-sm text-slate-600">${escapeHtml(t('noAnalyticsData'))}</p>
+              <button type="button" onclick="switchTab('pilot')" class="mt-4 min-h-[42px] px-4 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700">${escapeHtml(t('tabPilotTools'))}</button>
+            </div>
+          ` : `
+            <!-- Charts Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <h2 class="font-display font-bold text-base text-slate-900 mb-4">${escapeHtml(t('chartBestSellers'))}</h2>
+                <div id="best-sellers-chart-wrap" class="relative h-72 w-full">
+                  <canvas id="bestSellersChart"></canvas>
+                </div>
+              </div>
+              <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <h2 class="font-display font-bold text-base text-slate-900 mb-4">${escapeHtml(t('chartRevenueCat'))}</h2>
+                <div id="category-chart-wrap" class="relative h-72 w-full flex items-center justify-center">
+                  <canvas id="categoryChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Waiter Performance & Best-Sellers Table -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              <!-- Waiter Performance -->
+              <div class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <h2 class="font-display font-bold text-base text-slate-900 mb-4">${escapeHtml(t('waiterPerformance'))}</h2>
+                <div class="space-y-3">
+                  ${stats.waiterPerf.map((w, idx) => {
+                    const pct = stats.totalRevenue > 0 ? Math.round((w.revenue / stats.totalRevenue) * 100) : 0;
+                    const avgW = w.orders > 0 ? Math.round(w.revenue / w.orders) : 0;
+                    return `
+                      <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <div class="flex items-center justify-between mb-1.5">
+                          <div class="flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-lg ${idx === 0 ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-700'} font-display font-bold text-sm flex items-center justify-center">${escapeHtml(w.name.charAt(0))}</span>
+                            <div>
+                              <p class="font-bold text-sm text-slate-900">${escapeHtml(w.name)}</p>
+                              <p class="text-[11px] text-slate-500">${w.orders} ${escapeHtml(t('colOrders'))} • ${w.guests} ${escapeHtml(t('guests'))}</p>
+                            </div>
+                          </div>
+                          <div class="text-right">
+                            <p class="font-display font-extrabold text-sm text-slate-900">${formatTRY(w.revenue)}</p>
+                            <p class="text-[11px] text-slate-500">${escapeHtml(t('colAvgOrder'))}: ${formatTRY(avgW)}</p>
+                          </div>
+                        </div>
+                        <div class="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                          <div class="h-full rounded-full ${idx === 0 ? 'bg-brand-600' : 'bg-emerald-500'}" style="width: ${pct}%"></div>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+
+              <!-- Best-Selling Items Table -->
+              <div class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm overflow-hidden">
+                <h2 class="font-display font-bold text-base text-slate-900 mb-4">${escapeHtml(t('tableBestSellers'))}</h2>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                    <thead>
+                      <tr class="border-b border-slate-200 text-slate-500 text-xs">
+                        <th class="py-2.5 pr-3 font-semibold">${escapeHtml(t('colRank'))}</th>
+                        <th class="py-2.5 pr-3 font-semibold">${escapeHtml(t('colItem'))}</th>
+                        <th class="py-2.5 pr-3 font-semibold">${escapeHtml(t('colCategory'))}</th>
+                        <th class="py-2.5 pr-3 font-semibold text-right">${escapeHtml(t('colUnits'))}</th>
+                        <th class="py-2.5 font-semibold text-right">${escapeHtml(t('colRevenue'))}</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      ${stats.bestSellers.slice(0, 10).map((it, idx) => `
+                        <tr class="hover:bg-slate-50">
+                          <td class="py-2.5 pr-3 font-bold text-slate-400">${idx + 1}</td>
+                          <td class="py-2.5 pr-3 font-semibold text-slate-900">${escapeHtml(getItemName(it))}</td>
+                          <td class="py-2.5 pr-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-semibold">${escapeHtml(t(it.category))}</span></td>
+                          <td class="py-2.5 pr-3 text-right font-bold text-slate-800">${it.units}</td>
+                          <td class="py-2.5 text-right font-bold text-brand-700">${formatTRY(it.revenue)}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table Performance & Turnover Table (T1-T12) -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm overflow-hidden">
+              <h2 class="font-display font-bold text-base text-slate-900 mb-4">${escapeHtml(t('tablePerformance'))}</h2>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                  <thead>
+                    <tr class="border-b border-slate-200 text-slate-500 text-xs">
+                      <th class="py-2.5 pr-3 font-semibold">${escapeHtml(t('colTable'))}</th>
+                      <th class="py-2.5 pr-3 font-semibold">${escapeHtml(t('colZone'))}</th>
+                      <th class="py-2.5 pr-3 font-semibold text-right">${escapeHtml(t('colSeatings'))}</th>
+                      <th class="py-2.5 pr-3 font-semibold text-right">${escapeHtml(t('colGuests'))}</th>
+                      <th class="py-2.5 pr-3 font-semibold text-right">${escapeHtml(t('colAvgMin'))}</th>
+                      <th class="py-2.5 font-semibold text-right">${escapeHtml(t('colRevenue'))}</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    ${stats.tablePerf.map(tp => `
+                      <tr class="hover:bg-slate-50">
+                        <td class="py-2.5 pr-3 font-display font-bold text-slate-900">${tp.id} <span class="text-[11px] font-normal text-slate-400">(${tp.seats}p)</span></td>
+                        <td class="py-2.5 pr-3 text-slate-600">${escapeHtml(getZoneLabel(tp.zone))}</td>
+                        <td class="py-2.5 pr-3 text-right font-semibold">${tp.seatings}</td>
+                        <td class="py-2.5 pr-3 text-right">${tp.guests}</td>
+                        <td class="py-2.5 pr-3 text-right">${tp.avgMin > 0 ? `${tp.avgMin} ${escapeHtml(t('minUnit'))}` : '—'}</td>
+                        <td class="py-2.5 text-right font-bold text-slate-900">${formatTRY(tp.rev)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Completed Orders Log -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm overflow-hidden">
+              <h2 class="font-display font-bold text-base text-slate-900 mb-4">${escapeHtml(t('completedOrdersLog'))} (${stats.orders.length})</h2>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                  <thead>
+                    <tr class="border-b border-slate-200 text-slate-500 text-xs">
+                      <th class="py-2.5 pr-3 font-semibold">ID</th>
+                      <th class="py-2.5 pr-3 font-semibold">${escapeHtml(t('colTime'))}</th>
+                      <th class="py-2.5 pr-3 font-semibold">${escapeHtml(t('colTable'))}</th>
+                      <th class="py-2.5 pr-3 font-semibold">${escapeHtml(t('colWaiter'))}</th>
+                      <th class="py-2.5 pr-3 font-semibold text-right">${escapeHtml(t('guests'))}</th>
+                      <th class="py-2.5 pr-3 font-semibold text-right">${escapeHtml(t('colDuration'))}</th>
+                      <th class="py-2.5 pr-3 font-semibold">${escapeHtml(t('colPayment'))}</th>
+                      <th class="py-2.5 font-semibold text-right">${escapeHtml(t('colTotal'))}</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    ${[...stats.orders].reverse().map(o => `
+                      <tr class="hover:bg-slate-50">
+                        <td class="py-2.5 pr-3 font-mono text-xs font-bold text-slate-600">${escapeHtml(o.id)}</td>
+                        <td class="py-2.5 pr-3 text-slate-600">${formatClockTime(o.endTime)}</td>
+                        <td class="py-2.5 pr-3 font-bold text-slate-900">${escapeHtml(o.tableId)}</td>
+                        <td class="py-2.5 pr-3 text-slate-700">${escapeHtml(o.waiter)}</td>
+                        <td class="py-2.5 pr-3 text-right">${o.guests}</td>
+                        <td class="py-2.5 pr-3 text-right font-mono text-xs">${o.durationMinutes} ${escapeHtml(t('minUnit'))}</td>
+                        <td class="py-2.5 pr-3">
+                          <span class="px-2 py-0.5 rounded-md text-[11px] font-bold ${o.paymentMethod === 'Cash' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'}">
+                            ${escapeHtml(o.paymentMethod === 'Cash' ? t('cash') : t('creditCard'))}
+                          </span>
+                        </td>
+                        <td class="py-2.5 text-right font-display font-bold text-slate-900">${formatTRY(o.total)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `}
+        </div>
+      `;
+
+      if (stats.completedCount > 0) {
+        renderManagerCharts(stats);
+      }
+    }
+
+    function renderManagerCharts(stats) {
+      // Destroy old instances cleanly
+      if (bestSellersChartInstance) { bestSellersChartInstance.destroy(); bestSellersChartInstance = null; }
+      if (categoryChartInstance) { categoryChartInstance.destroy(); categoryChartInstance = null; }
+
+      const top8 = stats.bestSellers.slice(0, 8);
+      const catLabels = CATEGORIES.map(c => t(c));
+      const catValues = CATEGORIES.map(c => stats.categoryRevMap[c] || 0);
+
+      // Graceful fallback if Chart.js CDN didn't load
+      if (typeof Chart === 'undefined') {
+        const maxU = Math.max(1, ...top8.map(x => x.units));
+        document.getElementById('best-sellers-chart-wrap').innerHTML = `
+          <div class="space-y-2.5 overflow-y-auto h-full pr-1">
+            ${top8.map(it => `
+              <div>
+                <div class="flex justify-between text-xs font-semibold mb-1"><span>${escapeHtml(getItemName(it))}</span><span>${it.units}</span></div>
+                <div class="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-brand-600 rounded-full" style="width:${Math.round((it.units / maxU) * 100)}%"></div></div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        document.getElementById('category-chart-wrap').innerHTML = `
+          <div class="w-full space-y-2">
+            ${CATEGORIES.map((c, idx) => `<div class="flex justify-between text-sm py-1 border-b border-slate-100"><span>${escapeHtml(catLabels[idx])}</span><strong>${formatTRY(catValues[idx])}</strong></div>`).join('')}
+          </div>
+        `;
+        return;
+      }
+
+      try {
+        const ctx1 = document.getElementById('bestSellersChart').getContext('2d');
+        bestSellersChartInstance = new Chart(ctx1, {
+          type: 'bar',
+          data: {
+            labels: top8.map(it => {
+              const nm = getItemName(it);
+              return nm.length > 26 ? nm.slice(0, 24) + '…' : nm;
+            }),
+            datasets: [{
+              label: t('colUnits'),
+              data: top8.map(it => it.units),
+              backgroundColor: '#B45309',
+              borderRadius: 6,
+              barThickness: 18
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#F1F5F9' } },
+              y: { grid: { display: false }, ticks: { font: { size: 11, weight: '600' }, color: '#334155' } }
+            }
+          }
+        });
+
+        const ctx2 = document.getElementById('categoryChart').getContext('2d');
+        categoryChartInstance = new Chart(ctx2, {
+          type: 'doughnut',
+          data: {
+            labels: catLabels,
+            datasets: [{
+              data: catValues,
+              backgroundColor: ['#B45309', '#10B981', '#1E293B', '#F59E0B', '#0EA5E9'],
+              borderWidth: 2,
+              borderColor: '#FFFFFF'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { boxWidth: 12, padding: 14, font: { size: 11, weight: '600' } }
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.warn('Chart rendering error:', err);
+      }
+    }
+
+    /* =====================================================================
+     * 14. MANAGER TAB 3: MENU MANAGEMENT (TOGGLE SOLD OUT, EDIT, ADD NEW)
+     * ===================================================================== */
+    function renderManagerMenuView(container) {
+      const filtered = appState.menu.filter(item => {
+        const matchCat = managerMenuCategory === 'All' || item.category === managerMenuCategory;
+        const q = managerMenuSearch.trim().toLowerCase();
+        const matchSearch = !q ||
+          getItemName(item).toLowerCase().includes(q) ||
+          getItemDesc(item).toLowerCase().includes(q);
+        return matchCat && matchSearch;
+      });
+
+      container.innerHTML = `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div>
+            <h1 class="font-display font-extrabold text-xl sm:text-2xl text-slate-900">${escapeHtml(t('menuMgmtTitle'))}</h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">${escapeHtml(t('menuMgmtSub'))}</p>
+          </div>
+          <button type="button" onclick="openMenuEditModal(null)" class="min-h-[44px] px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            <span>${escapeHtml(t('addNewItemBtn'))}</span>
+          </button>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 mb-4">
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1">
+            ${['All', ...CATEGORIES].map(cat => `
+              <button type="button" onclick="managerMenuCategory='${cat}'; renderMainView()" class="min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap border transition ${
+                managerMenuCategory === cat ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200'
+              }">${escapeHtml(cat === 'All' ? t('allCategories') : t(cat))}</button>
+            `).join('')}
+          </div>
+          <input type="text" value="${escapeHtml(managerMenuSearch)}" oninput="managerMenuSearch=this.value; renderMainView()" placeholder="${escapeHtml(t('searchMenuPlaceholder'))}" class="sm:w-64 min-h-[40px] px-3.5 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:border-brand-600" />
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs">
+                  <th class="py-3 px-4 font-semibold">${escapeHtml(t('colItem'))}</th>
+                  <th class="py-3 px-3 font-semibold">${escapeHtml(t('colCategory'))}</th>
+                  <th class="py-3 px-3 font-semibold text-right">${escapeHtml(t('priceTry'))}</th>
+                  <th class="py-3 px-3 font-semibold text-center">${escapeHtml(t('active'))} / ${escapeHtml(t('soldOut'))}</th>
+                  <th class="py-3 px-4 font-semibold text-right"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                ${filtered.map(item => `
+                  <tr class="${item.active ? 'hover:bg-slate-50' : 'bg-rose-50/30'}">
+                    <td class="py-3 px-4">
+                      <p class="font-bold text-slate-900">${escapeHtml(getItemName(item))}</p>
+                      <p class="text-xs text-slate-500 line-clamp-1 max-w-md">${escapeHtml(getItemDesc(item))}</p>
+                    </td>
+                    <td class="py-3 px-3 whitespace-nowrap">
+                      <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold">${escapeHtml(t(item.category))}</span>
+                    </td>
+                    <td class="py-3 px-3 text-right font-display font-bold text-slate-900 whitespace-nowrap">${formatTRY(item.price)}</td>
+                    <td class="py-3 px-3 text-center whitespace-nowrap">
+                      <button type="button" onclick="toggleMenuItemActive('${item.id}')" class="min-h-[34px] px-3 rounded-full text-xs font-bold transition ${
+                        item.active
+                          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          : 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                      }">
+                        ${escapeHtml(item.active ? t('active') : t('soldOut'))}
+                      </button>
+                    </td>
+                    <td class="py-3 px-4 text-right whitespace-nowrap">
+                      <button type="button" onclick="openMenuEditModal('${item.id}')" class="min-h-[36px] px-3 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-bold text-slate-700">
+                        ${escapeHtml(t('edit'))}
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleMenuItemActive(menuId) {
+      const item = getMenuItem(menuId);
+      if (!item) return;
+      item.active = !item.active;
+      saveState();
+      showToast(`${getItemName(item)}: ${item.active ? t('active') : t('soldOut')}`, item.active ? 'success' : 'warning');
+      renderMainView();
+    }
+
+    function openMenuEditModal(menuId) {
+      const modal = document.getElementById('menu-edit-modal');
+      const titleEl = document.getElementById('menu-modal-title');
+      if (menuId) {
+        const item = getMenuItem(menuId);
+        if (!item) return;
+        titleEl.textContent = t('editMenuItemTitle');
+        document.getElementById('edit-item-id').value = item.id;
+        document.getElementById('edit-name-en').value = item.name.en;
+        document.getElementById('edit-name-tr').value = item.name.tr;
+        document.getElementById('edit-category').value = item.category;
+        document.getElementById('edit-price').value = item.price;
+        document.getElementById('edit-prep').value = item.prepTime || 10;
+        document.getElementById('edit-desc-en').value = item.desc.en;
+        document.getElementById('edit-desc-tr').value = item.desc.tr;
+        document.getElementById('edit-tags').value = (item.tags || []).join(', ');
+      } else {
+        titleEl.textContent = t('addMenuItemTitle');
+        document.getElementById('edit-item-id').value = '';
+        document.getElementById('edit-name-en').value = '';
+        document.getElementById('edit-name-tr').value = '';
+        document.getElementById('edit-category').value = 'Main Courses';
+        document.getElementById('edit-price').value = 250;
+        document.getElementById('edit-prep').value = 15;
+        document.getElementById('edit-desc-en').value = '';
+        document.getElementById('edit-desc-tr').value = '';
+        document.getElementById('edit-tags').value = '';
+      }
+      applyStaticI18n();
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeMenuEditModal() {
+      const modal = document.getElementById('menu-edit-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function saveMenuItemForm(e) {
+      e.preventDefault();
+      const id = document.getElementById('edit-item-id').value;
+      const nameEn = document.getElementById('edit-name-en').value.trim();
+      const nameTr = document.getElementById('edit-name-tr').value.trim();
+      const category = document.getElementById('edit-category').value;
+      const price = Math.max(1, parseInt(document.getElementById('edit-price').value, 10) || 100);
+      const prepTime = Math.max(1, parseInt(document.getElementById('edit-prep').value, 10) || 10);
+      const descEn = document.getElementById('edit-desc-en').value.trim();
+      const descTr = document.getElementById('edit-desc-tr').value.trim();
+      const tagsRaw = document.getElementById('edit-tags').value.trim();
+      const tags = tagsRaw ? tagsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+      if (id) {
+        const existing = getMenuItem(id);
+        if (existing) {
+          existing.name = { en: nameEn, tr: nameTr };
+          existing.category = category;
+          existing.price = price;
+          existing.prepTime = prepTime;
+          existing.desc = { en: descEn, tr: descTr };
+          existing.tags = tags;
+        }
+      } else {
+        appState.menu.push({
+          id: 'm' + Date.now(),
+          category,
+          price,
+          prepTime,
+          active: true,
+          name: { en: nameEn, tr: nameTr },
+          desc: { en: descEn, tr: descTr },
+          tags
+        });
+      }
+
+      saveState();
+      closeMenuEditModal();
+      showToast(t('toastMenuSaved'), 'success');
+      renderAppShell();
+    }
+
+    /* =====================================================================
+     * 15. MANAGER TAB 4: PILOT TOOLS & CSV EXPORTS
+     * ===================================================================== */
+    function renderManagerPilotView(container) {
+      const stats = computeAnalytics();
+
+      container.innerHTML = `
+        <div class="max-w-4xl space-y-5">
+          <div>
+            <h1 class="font-display font-extrabold text-xl sm:text-2xl text-slate-900">${escapeHtml(t('pilotToolsTitle'))}</h1>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">${escapeHtml(t('pilotToolsSub'))}</p>
+          </div>
+
+          <!-- Database Snapshot Banner -->
+          <div class="rounded-2xl p-4 sm:p-5 border ${appState.isDemoSeeded ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'} flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${appState.isDemoSeeded ? 'text-amber-800' : 'text-emerald-800'}">
+                <span class="w-2 h-2 rounded-full ${appState.isDemoSeeded ? 'bg-amber-500' : 'bg-emerald-500'}"></span>
+                ${escapeHtml(appState.isDemoSeeded ? t('demoDataBanner') : t('livePilotBanner'))}
+              </span>
+              <p class="text-sm text-slate-700 mt-1">
+                <strong>${stats.completedCount}</strong> ${escapeHtml(t('kpiCompletedOrders'))} •
+                <strong>${stats.activeCount}</strong> ${escapeHtml(t('kpiActiveTables'))} •
+                <strong>${appState.menu.length}</strong> ${appState.lang === 'tr' ? 'Menü Ürünü' : 'Menu Items'}
+              </p>
+            </div>
+            <span class="font-display font-extrabold text-xl text-slate-900">${formatTRY(stats.totalRevenue)}</span>
+          </div>
+
+          <!-- Tools Cards Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Export Orders CSV -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm">
+              <div>
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-3">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                </div>
+                <h3 class="font-display font-bold text-base text-slate-900">${escapeHtml(t('exportOrdersTitle'))}</h3>
+                <p class="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">${escapeHtml(t('exportOrdersDesc'))}</p>
+              </div>
+              <button type="button" onclick="exportOrdersCSV()" class="mt-5 w-full min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition">${escapeHtml(t('exportOrdersBtn'))}</button>
+            </div>
+
+            <!-- Export Table Turnover CSV -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm">
+              <div>
+                <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center mb-3">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"/></svg>
+                </div>
+                <h3 class="font-display font-bold text-base text-slate-900">${escapeHtml(t('exportTablesTitle'))}</h3>
+                <p class="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">${escapeHtml(t('exportTablesDesc'))}</p>
+              </div>
+              <button type="button" onclick="exportTableReportCSV()" class="mt-5 w-full min-h-[44px] rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition">${escapeHtml(t('exportTablesBtn'))}</button>
+            </div>
+
+            <!-- Load Demo Data -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm">
+              <div>
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-3">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                </div>
+                <h3 class="font-display font-bold text-base text-slate-900">${escapeHtml(t('loadDemoTitle'))}</h3>
+                <p class="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">${escapeHtml(t('loadDemoDesc'))}</p>
+              </div>
+              <button type="button" onclick="promptLoadDemoData()" class="mt-5 w-full min-h-[44px] rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-sm transition">${escapeHtml(t('loadDemoBtn'))}</button>
+            </div>
+
+            <!-- Reset All Data for Pilot Test -->
+            <div class="bg-white rounded-2xl border border-rose-200 p-5 flex flex-col justify-between shadow-sm">
+              <div>
+                <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center mb-3">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                </div>
+                <h3 class="font-display font-bold text-base text-rose-900">${escapeHtml(t('resetPilotTitle'))}</h3>
+                <p class="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">${escapeHtml(t('resetPilotDesc'))}</p>
+              </div>
+              <button type="button" onclick="promptResetForPilot()" class="mt-5 w-full min-h-[44px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm transition">${escapeHtml(t('resetPilotBtn'))}</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function promptLoadDemoData() {
+      showConfirm(t('confirmDemoTitle'), t('confirmDemoMsg'), () => {
+        appState = createDemoState(appState.lang);
+        saveState();
+        showToast(t('toastDemoLoaded'), 'success');
+        renderAppShell();
+      }, false);
+    }
+
+    function promptResetForPilot() {
+      showConfirm(t('confirmResetTitle'), t('confirmResetMsg'), () => {
+        appState.isDemoSeeded = false;
+        appState.tables = buildEmptyTablesState();
+        appState.completedOrders = [];
+        saveState();
+        showToast(t('toastResetDone'), 'success');
+        renderAppShell();
+      }, true);
+    }
+
+    function csvCell(val) {
+      const str = String(val === null || val === undefined ? '' : val).replace(/"/g, '""');
+      return `"${str}"`;
+    }
+
+    function triggerCSVDownload(filename, rows) {
+      try {
+        const csvString = '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showToast(t('toastCsvExported'), 'success');
+      } catch (err) {
+        console.error('CSV export error:', err);
+        showToast('Export failed', 'error');
+      }
+    }
+
+    function exportOrdersCSV() {
+      if (!appState.completedOrders || appState.completedOrders.length === 0) {
+        showToast(t('toastNoDataExport'), 'warning');
+        return;
+      }
+      const headers = [
+        'Order_ID', 'Date', 'Start_Time', 'End_Time', 'Table', 'Zone', 'Waiter',
+        'Guests', 'Duration_Min', 'Payment_Method', 'Subtotal_TRY', 'Service_Charge_TRY',
+        'Total_TRY', 'Items_Count', 'Items_Detail', 'Kitchen_Note'
+      ];
+      const rows = [headers];
+      appState.completedOrders.forEach(o => {
+        const cfg = TABLES_CONFIG.find(c => c.id === o.tableId);
+        const dateStr = new Date(o.endTime).toISOString().slice(0, 10);
+        const itemsCount = (o.items || []).reduce((s, i) => s + i.qty, 0);
+        const itemsDetail = (o.items || []).map(i => `${i.qty}x ${i.nameEn}`).join(' | ');
+        rows.push([
+          o.id,
+          dateStr,
+          formatClockTime(o.startTime),
+          formatClockTime(o.endTime),
+          o.tableId,
+          cfg ? cfg.zone : '',
+          o.waiter,
+          o.guests,
+          o.durationMinutes,
+          o.paymentMethod,
+          o.subtotal,
+          o.serviceCharge,
+          o.total,
+          itemsCount,
+          itemsDetail,
+          o.note || ''
+        ]);
+      });
+      triggerCSVDownload(`BistroFlow_Orders_${new Date().toISOString().slice(0, 10)}.csv`, rows);
+    }
+
+    function exportTableReportCSV() {
+      const stats = computeAnalytics();
+      const headers = ['Table', 'Zone', 'Capacity', 'Times_Seated', 'Total_Guests', 'Avg_Duration_Min', 'Total_Revenue_TRY'];
+      const rows = [headers];
+      stats.tablePerf.forEach(tp => {
+        rows.push([tp.id, getZoneLabel(tp.zone), tp.seats, tp.seatings, tp.guests, tp.avgMin, tp.rev]);
+      });
+      triggerCSVDownload(`BistroFlow_TableTurnover_${new Date().toISOString().slice(0, 10)}.csv`, rows);
+    }
+
+    /* =====================================================================
+     * 16. INITIALIZATION & LIVE DINING TIMER TICKER
+     * ===================================================================== */
+    applyStaticI18n();
+
+    // Update live dining duration timers every 30 seconds without disrupting form inputs
+    setInterval(() => {
+      if (!session.loggedIn) return;
+      if (session.activeTab === 'floor' || session.activeTab === 'livefloor' || session.activeTab === 'active') {
+        renderMainView();
+      }
+    }, 30000);
+  </script>
+</body>
+</html>
